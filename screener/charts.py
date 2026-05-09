@@ -171,8 +171,9 @@ def top_opportunities_bar(df: pd.DataFrame, n: int = 8,
         textfont=dict(color=COLORS["text_light"], size=11),
         hovertemplate="%{y}: +%{x:.1f}%<extra></extra>",
     ))
-    fig.update_layout(
-        **LAYOUT_BASE,
+        # Copie LAYOUT_BASE et fusionne avec les paramètres spécifiques
+    layout = LAYOUT_BASE.copy()
+    layout.update(
         height=height,
         title=dict(text="Top Opportunités — Upside estimé", font=dict(size=13), x=0),
         xaxis_title="Upside %",
@@ -181,6 +182,7 @@ def top_opportunities_bar(df: pd.DataFrame, n: int = 8,
             tickfont=dict(size=12, color=COLORS["text_light"]),
         ),
     )
+    fig.update_layout(**layout)
     return fig
 
 
