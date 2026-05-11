@@ -193,11 +193,46 @@ def score_risk(row: dict) -> float:
 # ---------------------------------------------------------------------------
 
 def get_signal(score: int) -> str:
+    """
+    Signal basé sur le score global (conservé pour usage interne).
+    N'est PLUS utilisé pour l'affichage — voir get_signal_from_upside().
+    """
     if score >= 75: return "Fortement sous-évalué"
     elif score >= 60: return "Sous-évalué"
     elif score >= 45: return "Neutre"
     elif score >= 30: return "Surévalué"
     else: return "Fortement surévalué"
+
+
+def get_signal_from_upside(upside: float, fair_value) -> str:
+    """
+    Signal aligné directement sur la comparaison Fair Value vs Prix.
+
+    Logique :
+      upside = (FV / Prix - 1) × 100
+      → upside > 0  : FV > Prix → actif coûte MOINS que sa valeur → SOUS-ÉVALUÉ
+      → upside < 0  : FV < Prix → actif coûte PLUS que sa valeur  → SURÉVALUÉ
+
+    Seuils :
+      upside >= +20%          → Fortement sous-évalué
+      +5% <= upside < +20%    → Sous-évalué
+      -5% <= upside < +5%     → Neutre  (FV ≈ Prix, écart < 5%)
+      -20% <= upside < -5%    → Surévalué
+      upside < -20%           → Fortement surévalué
+      FV indisponible (None)  → Neutre
+    """
+    if fair_value is None:
+        return "Neutre"
+    if upside >= 20:
+        return "Fortement sous-évalué"
+    elif upside >= 5:
+        return "Sous-évalué"
+    elif upside >= -5:
+        return "Neutre"
+    elif upside >= -20:
+        return "Surévalué"
+    else:
+        return "Fortement surévalué"
 
 
 def get_signal_emoji(signal: str) -> str:
@@ -284,7 +319,7 @@ def compute_phronesis_score(df: pd.DataFrame) -> pd.DataFrame:
 
         price = row.get("price", 0)
         up    = upside_pct(price, fv) if fv else 0.0
-        sig   = get_signal(total)
+        sig   = get_signal_from_upside(up, fv)
 
         results.append({
             **row,
