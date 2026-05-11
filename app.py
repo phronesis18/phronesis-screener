@@ -474,7 +474,7 @@ if ticker_detail:
             col.metric(label, display)
 
         # Conclusion IA (simulée)
-        _gen_ai_conclusion(r)
+        #_gen_ai_conclusion(r)
 
 
 def _gen_ai_conclusion(r):
