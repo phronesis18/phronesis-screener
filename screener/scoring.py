@@ -16,46 +16,55 @@ def score_value(row: dict) -> float:
     """
     Score Valeur — 0 à 25 pts
     Mesure si l'actif est sous-évalué par rapport à sa valeur intrinsèque.
-    """
-    score = 0.0
-    asset = row.get("asset_type", "Action")
 
-    fv = row.get("_fair_value")
+    v2 : P/E évalué RELATIVEMENT au PER sectoriel moyen (plus juste pour la tech).
+    Ex : AAPL P/E 28 dans le secteur Tech (PER moyen 28) = neutre, pas "surévalué".
+    """
+    from screener.valuation import SECTOR_PE
+
+    score = 0.0
+    asset  = row.get("asset_type", "Action")
+    sector = row.get("sector", "Technology")
+
+    fv    = row.get("_fair_value")
     price = row.get("price", 0)
 
-    # --- Upside potentiel (12 pts max) ---
+    # --- Upside potentiel composite (12 pts max) ---
     if fv and price > 0:
         up = upside_pct(price, fv)
-        if up >= 40:    score += 12
-        elif up >= 20:  score += 9
-        elif up >= 10:  score += 6
-        elif up >= 0:   score += 3
-        elif up < -20:  score -= 3  # Fortement surévalué
+        if up >= 30:    score += 12
+        elif up >= 15:  score += 9
+        elif up >= 5:   score += 6
+        elif up >= -5:  score += 3   # Neutre : légèrement proche de la FV
+        elif up < -25:  score -= 3   # Significativement surévalué
 
-    # --- P/E (6 pts max) — actions seulement ---
-    if asset in ("Action",):
-        pe = row.get("pe")
+    # --- P/E RELATIF au secteur (6 pts max) — actions seulement ---
+    if asset == "Action":
+        pe         = row.get("pe")
+        sector_pe  = SECTOR_PE.get(sector, 18.0) or 18.0
         if pe and pe > 0:
-            if pe < 12:   score += 6
-            elif pe < 18: score += 4
-            elif pe < 25: score += 2
-            elif pe > 40: score -= 2
+            ratio = pe / sector_pe   # < 1 = moins cher que le secteur
+            if ratio < 0.70:    score += 6   # P/E < 70% du secteur → très décoté
+            elif ratio < 0.85:  score += 4   # P/E < 85% du secteur → décoté
+            elif ratio < 1.05:  score += 2   # P/E ~ secteur → neutre
+            elif ratio < 1.25:  score += 0   # P/E légèrement premium
+            elif ratio > 1.50:  score -= 2   # P/E très premium → pénalité
 
-    # --- P/B (4 pts max) — actions + REITs ---
-    if asset in ("Action",):
+    # --- P/B (3 pts max) — pondération réduite car biaisé pour la tech ---
+    if asset == "Action":
         pb = row.get("pb")
         if pb and pb > 0:
-            if pb < 1.0:   score += 4
-            elif pb < 1.5: score += 3
+            if pb < 1.5:   score += 3
             elif pb < 3.0: score += 1
-            elif pb > 5.0: score -= 1
+            elif pb > 8.0: score -= 1   # Extrême (ex: tech à P/B 40)
 
-    # --- EV/EBITDA (3 pts max) ---
+    # --- EV/EBITDA (4 pts max) ---
     ev_ebitda = row.get("ev_ebitda")
     if ev_ebitda and ev_ebitda > 0:
-        if ev_ebitda < 8:    score += 3
-        elif ev_ebitda < 15: score += 1
-        elif ev_ebitda > 30: score -= 1
+        if ev_ebitda < 8:    score += 4
+        elif ev_ebitda < 14: score += 2
+        elif ev_ebitda < 20: score += 1
+        elif ev_ebitda > 35: score -= 1
 
     return max(0.0, min(25.0, score))
 

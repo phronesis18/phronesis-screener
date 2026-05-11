@@ -5,3 +5,4 @@ plotly==5.20.0
 requests==2.31.0
 gspread==6.0.2
 google-auth==2.28.0
+# Assistant IA DeepSeek (API compatible OpenAI — requests suffit, pas besoin du SDK openai)

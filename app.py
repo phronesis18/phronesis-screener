@@ -18,6 +18,7 @@ from screener.lead_capture import is_lead_captured, show_lead_form
 from screener.charts import (
     price_chart, score_radar, score_distribution, top_opportunities_bar
 )
+from screener.ai_assistant import show_ai_assistant, show_setup_guide
 
 # ---------------------------------------------------------------------------
 # CONFIG PAGE
@@ -122,54 +123,6 @@ header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-
-def _gen_ai_conclusion(r):
-    """Génère une conclusion textuelle basée sur le score et les signaux."""
-    score  = int(r.get("score", 50))
-    signal = r.get("signal", "Neutre")
-    ticker = r["ticker"]
-    up     = r.get("upside_pct", 0)
-    risk   = r.get("risk", "Moyen")
-    rsi    = r.get("rsi", 50)
-    mom    = r.get("momentum_1m", 0)
-
-    if score >= 75:
-        verdict = f"**{ticker} présente un profil très attractif** selon notre méthodologie."
-        action  = f"L'upside estimé de {up:+.0f}% offre une marge de sécurité confortable."
-    elif score >= 60:
-        verdict = f"**{ticker} semble sous-évalué** par rapport à sa valeur intrinsèque estimée."
-        action  = "La combinaison valeur + momentum est favorable."
-    elif score >= 45:
-        verdict = f"**{ticker} se situe en zone neutre** — ni clairement sous-évalué, ni surévalué."
-        action  = "Attendre un meilleur point d'entrée ou une confirmation du momentum."
-    elif score >= 30:
-        verdict = f"**{ticker} montre des signes de surévaluation** relative."
-        action  = "Prudence — le ratio risque/rendement n'est pas favorable actuellement."
-    else:
-        verdict = f"**{ticker} semble fortement surévalué** selon notre scoring."
-        action  = "À éviter ou à shorter si la stratégie le permet."
-
-    rsi_comment = ""
-    if rsi > 70:
-        rsi_comment = f" Le RSI à {rsi:.0f} signale un territoire overbought — risque de correction."
-    elif rsi < 35:
-        rsi_comment = f" Le RSI à {rsi:.0f} indique un oversold — possible opportunité de rebond."
-
-    mom_comment = f" Momentum 1 mois : {mom:+.1f}%." if abs(mom) > 3 else ""
-
-    st.markdown(f"""
-    <div style="background:#111827;border-left:3px solid #10B981;border-radius:0 10px 10px 0;padding:16px 20px;margin-top:8px">
-        <div style="font-size:12px;font-weight:600;color:#10B981;margin-bottom:6px;letter-spacing:1px">ANALYSE PHRONESIS</div>
-        <div style="font-size:14px;color:#F9FAFB;line-height:1.7">
-            {verdict} {action}{rsi_comment}{mom_comment}
-            <br><br>
-            <span style="color:#6B7280;font-size:12px">
-            ⚠️ Cette analyse est générée algorithmiquement. Elle ne constitue pas un conseil en investissement.
-            Toujours compléter avec votre propre analyse avant toute décision.
-            </span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # DONNÉES PAR DÉFAUT
@@ -524,7 +477,53 @@ if ticker_detail:
         _gen_ai_conclusion(r)
 
 
+def _gen_ai_conclusion(r):
+    """Génère une conclusion textuelle basée sur le score et les signaux."""
+    score  = int(r.get("score", 50))
+    signal = r.get("signal", "Neutre")
+    ticker = r["ticker"]
+    up     = r.get("upside_pct", 0)
+    risk   = r.get("risk", "Moyen")
+    rsi    = r.get("rsi", 50)
+    mom    = r.get("momentum_1m", 0)
 
+    if score >= 75:
+        verdict = f"**{ticker} présente un profil très attractif** selon notre méthodologie."
+        action  = f"L'upside estimé de {up:+.0f}% offre une marge de sécurité confortable."
+    elif score >= 60:
+        verdict = f"**{ticker} semble sous-évalué** par rapport à sa valeur intrinsèque estimée."
+        action  = "La combinaison valeur + momentum est favorable."
+    elif score >= 45:
+        verdict = f"**{ticker} se situe en zone neutre** — ni clairement sous-évalué, ni surévalué."
+        action  = "Attendre un meilleur point d'entrée ou une confirmation du momentum."
+    elif score >= 30:
+        verdict = f"**{ticker} montre des signes de surévaluation** relative."
+        action  = "Prudence — le ratio risque/rendement n'est pas favorable actuellement."
+    else:
+        verdict = f"**{ticker} semble fortement surévalué** selon notre scoring."
+        action  = "À éviter ou à shorter si la stratégie le permet."
+
+    rsi_comment = ""
+    if rsi > 70:
+        rsi_comment = f" Le RSI à {rsi:.0f} signale un territoire overbought — risque de correction."
+    elif rsi < 35:
+        rsi_comment = f" Le RSI à {rsi:.0f} indique un oversold — possible opportunité de rebond."
+
+    mom_comment = f" Momentum 1 mois : {mom:+.1f}%." if abs(mom) > 3 else ""
+
+    st.markdown(f"""
+    <div style="background:#111827;border-left:3px solid #10B981;border-radius:0 10px 10px 0;padding:16px 20px;margin-top:8px">
+        <div style="font-size:12px;font-weight:600;color:#10B981;margin-bottom:6px;letter-spacing:1px">ANALYSE PHRONESIS</div>
+        <div style="font-size:14px;color:#F9FAFB;line-height:1.7">
+            {verdict} {action}{rsi_comment}{mom_comment}
+            <br><br>
+            <span style="color:#6B7280;font-size:12px">
+            ⚠️ Cette analyse est générée algorithmiquement. Elle ne constitue pas un conseil en investissement.
+            Toujours compléter avec votre propre analyse avant toute décision.
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
@@ -543,6 +542,33 @@ with g2_col1:
 with g2_col2:
     fig_top = top_opportunities_bar(df_raw)
     st.plotly_chart(fig_top, use_container_width=True, config={"displayModeBar": False})
+
+
+# ---------------------------------------------------------------------------
+# ASSISTANT IA — Section interactive DeepSeek
+# ---------------------------------------------------------------------------
+
+st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
+st.subheader("Assistant IA")
+
+# Récupère la row de l'actif sélectionné pour le contexte IA
+_ai_row = None
+if ticker_detail:
+    _ai_match = df_raw[df_raw["ticker"] == ticker_detail]
+    if not _ai_match.empty:
+        _ai_row = _ai_match.iloc[0].to_dict()
+
+# Vérifier si la clé DeepSeek est configurée
+_has_deepseek_key = bool(st.secrets.get("DEEPSEEK_API_KEY", None))
+
+if _has_deepseek_key:
+    show_ai_assistant(df_row=_ai_row, ticker=ticker_detail)
+else:
+    ai_c1, ai_c2 = st.columns([3, 2])
+    with ai_c1:
+        show_ai_assistant(df_row=_ai_row, ticker=ticker_detail)
+    with ai_c2:
+        show_setup_guide()
 
 
 # ---------------------------------------------------------------------------
