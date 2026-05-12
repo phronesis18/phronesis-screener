@@ -1,7 +1,7 @@
 """
 app.py
 Phronesis Screener — Application principale Streamlit
-Avec recherche dynamique d'actifs supplémentaires.
+Avec mode dark (toggle sidebar) + assistant IA contextuel + recherche dynamique.
 """
 
 import streamlit as st
@@ -17,6 +17,7 @@ from screener.lead_capture import is_lead_captured, show_lead_form
 from screener.charts import (
     price_chart, score_radar, score_distribution, top_opportunities_bar
 )
+from screener.ai_assistant import show_ai_assistant
 
 # ---------------------------------------------------------------------------
 # CONFIG PAGE
@@ -34,73 +35,131 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# CSS GLOBAL
+# GESTION DU MODE DARK (SESSION STATE + TOGGLE SIDEBAR)
 # ---------------------------------------------------------------------------
-st.markdown("""
-<style>
-html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, sans-serif;
-}
-[data-testid="stAppViewContainer"] {
-    background: #0A0E1A;
-}
-[data-testid="stHeader"] {
-    background: transparent;
-}
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-header { visibility: hidden; }
-[data-testid="metric-container"] {
-    background: #111827;
-    border: 1px solid #1F2937;
-    border-radius: 12px;
-    padding: 16px 20px;
-}
-[data-testid="metric-container"] label {
-    color: #6B7280 !important;
-    font-size: 12px !important;
-}
-[data-testid="metric-container"] [data-testid="stMetricValue"] {
-    color: #F9FAFB !important;
-    font-size: 1.6rem !important;
-    font-weight: 700 !important;
-}
-[data-testid="stDataFrame"] {
-    border: 1px solid #1F2937;
-    border-radius: 10px;
-    overflow: hidden;
-}
-.stButton > button {
-    border-radius: 8px;
-    font-weight: 600;
-    transition: all 0.2s;
-}
-.stTextInput > div > div > input,
-.stSelectbox > div > div > div {
-    background: #111827 !important;
-    border: 1px solid #1F2937 !important;
-    color: #F9FAFB !important;
-    border-radius: 8px !important;
-}
-.badge-green  { background:#064E3B; color:#6EE7B7; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-.badge-blue   { background:#1E3A5F; color:#93C5FD; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-.badge-gray   { background:#1F2937; color:#9CA3AF; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-.badge-orange { background:#431407; color:#FDBA74; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-.badge-red    { background:#450A0A; color:#FCA5A5; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-.ph-divider {
-    border: none;
-    border-top: 1px solid #1F2937;
-    margin: 24px 0;
-}
-.cta-section {
-    background: linear-gradient(135deg, #064E3B 0%, #1E3A5F 100%);
-    border-radius: 16px;
-    padding: 32px;
-    text-align: center;
-    margin-top: 32px;
-}
-</style>
-""", unsafe_allow_html=True)
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+# Sidebar pour les filtres et mode dark
+with st.sidebar:
+    st.title("⚙️ Paramètres")
+    dark_mode_toggle = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
+    if dark_mode_toggle != st.session_state.dark_mode:
+        st.session_state.dark_mode = dark_mode_toggle
+        st.rerun()
+    st.markdown("---")
+    st.subheader("Filtres")
+    # Les filtres seront définis plus bas après chargement des données,
+    # mais on les place ici pour l'organisation.
+
+# Appliquer le thème CSS selon le mode
+if st.session_state.dark_mode:
+    st.markdown("""
+    <style>
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, sans-serif;
+    }
+    [data-testid="stAppViewContainer"] {
+        background: #0A0E1A;
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
+    [data-testid="metric-container"] {
+        background: #111827;
+        border: 1px solid #1F2937;
+        border-radius: 12px;
+        padding: 16px 20px;
+    }
+    [data-testid="metric-container"] label {
+        color: #6B7280 !important;
+        font-size: 12px !important;
+    }
+    [data-testid="metric-container"] [data-testid="stMetricValue"] {
+        color: #F9FAFB !important;
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stDataFrame"] {
+        border: 1px solid #1F2937;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > div {
+        background: #111827 !important;
+        border: 1px solid #1F2937 !important;
+        color: #F9FAFB !important;
+        border-radius: 8px !important;
+    }
+    .badge-green  { background:#064E3B; color:#6EE7B7; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .badge-blue   { background:#1E3A5F; color:#93C5FD; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .badge-gray   { background:#1F2937; color:#9CA3AF; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .badge-orange { background:#431407; color:#FDBA74; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .badge-red    { background:#450A0A; color:#FCA5A5; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .ph-divider {
+        border: none;
+        border-top: 1px solid #1F2937;
+        margin: 24px 0;
+    }
+    .cta-section {
+        background: linear-gradient(135deg, #064E3B 0%, #1E3A5F 100%);
+        border-radius: 16px;
+        padding: 32px;
+        text-align: center;
+        margin-top: 32px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, sans-serif;
+    }
+    [data-testid="stAppViewContainer"] {
+        background: #FFFFFF;
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
+    [data-testid="metric-container"] {
+        background: #F3F4F6;
+        border: 1px solid #D1D5DB;
+        border-radius: 12px;
+        padding: 16px 20px;
+    }
+    [data-testid="metric-container"] label {
+        color: #4B5563 !important;
+        font-size: 12px !important;
+    }
+    [data-testid="metric-container"] [data-testid="stMetricValue"] {
+        color: #111827 !important;
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+    }
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .ph-divider {
+        border: none;
+        border-top: 1px solid #E5E7EB;
+        margin: 24px 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # GATE : Capture lead avant accès
@@ -161,7 +220,7 @@ if ticker_search and ticker_search.strip():
                 extra_df = pd.DataFrame([extra_data])
                 df_raw = pd.concat([df_raw, extra_df], ignore_index=True)
                 st.success(f"✅ {extra_ticker} ajouté au screener")
-                st.rerun()  # Force le rechargement pour prendre en compte le nouveau ticker
+                st.rerun()
             else:
                 st.warning(f"⚠️ Ticker {extra_ticker} non trouvé ou données indisponibles")
 
@@ -169,6 +228,48 @@ if ticker_search and ticker_search.strip():
 # SCORING
 # ---------------------------------------------------------------------------
 df_scored = compute_phronesis_score(df_raw)
+
+# Stocker df_scored dans session_state pour l'assistant IA
+st.session_state.df_scored = df_scored
+
+# ---------------------------------------------------------------------------
+# FILTRES (placés dans la sidebar)
+# ---------------------------------------------------------------------------
+with st.sidebar:
+    ASSET_TYPE_FILTER = {
+        "Tous": None,
+        "Actions US": "Action",
+        "ETF": ["ETF", "ETF Afrique"],
+        "Crypto": "Crypto",
+        "Forex": "Forex",
+        "Commodités": "Commodité",
+        "Afrique": "ETF Afrique",
+    }
+    asset_filter = st.selectbox("Type d'actif", list(ASSET_TYPE_FILTER.keys()), index=0)
+    signal_filter = st.selectbox(
+        "Signal",
+        ["Tous les signaux", "Fortement sous-évalué", "Sous-évalué",
+         "Neutre", "Surévalué", "Fortement surévalué"],
+    )
+    risk_filter = st.selectbox(
+        "Niveau de risque",
+        ["Tous niveaux", "Faible", "Moyen", "Élevé", "Très élevé"],
+    )
+    score_min = st.slider("Score minimum", 0, 100, 0, step=5)
+
+# Appliquer les filtres sur df_scored
+df = df_scored.copy()
+asset_val = ASSET_TYPE_FILTER.get(asset_filter)
+if asset_val:
+    if isinstance(asset_val, list):
+        df = df[df["asset_type"].isin(asset_val)]
+    else:
+        df = df[df["asset_type"] == asset_val]
+if signal_filter != "Tous les signaux":
+    df = df[df["signal"] == signal_filter]
+if risk_filter != "Tous niveaux":
+    df = df[df["risk"] == risk_filter]
+df = df[df["score"] >= score_min]
 
 # ---------------------------------------------------------------------------
 # KPI CARDS
@@ -201,49 +302,6 @@ kpi4.metric(
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# FILTRES
-# ---------------------------------------------------------------------------
-ASSET_TYPE_FILTER = {
-    "Tous": None,
-    "Actions US": "Action",
-    "ETF": ["ETF", "ETF Afrique"],
-    "Crypto": "Crypto",
-    "Forex": "Forex",
-    "Commodités": "Commodité",
-    "Afrique": "ETF Afrique",
-}
-
-f_col1, f_col2, f_col3, f_col4 = st.columns([2, 2, 2, 2])
-with f_col1:
-    asset_filter = st.selectbox("Type d'actif", list(ASSET_TYPE_FILTER.keys()), index=0)
-with f_col2:
-    signal_filter = st.selectbox(
-        "Signal",
-        ["Tous les signaux", "Fortement sous-évalué", "Sous-évalué",
-         "Neutre", "Surévalué", "Fortement surévalué"],
-    )
-with f_col3:
-    risk_filter = st.selectbox(
-        "Niveau de risque",
-        ["Tous niveaux", "Faible", "Moyen", "Élevé", "Très élevé"],
-    )
-with f_col4:
-    score_min = st.slider("Score minimum", 0, 100, 0, step=5)
-
-df = df_scored.copy()
-asset_val = ASSET_TYPE_FILTER.get(asset_filter)
-if asset_val:
-    if isinstance(asset_val, list):
-        df = df[df["asset_type"].isin(asset_val)]
-    else:
-        df = df[df["asset_type"] == asset_val]
-if signal_filter != "Tous les signaux":
-    df = df[df["signal"] == signal_filter]
-if risk_filter != "Tous niveaux":
-    df = df[df["risk"] == risk_filter]
-df = df[df["score"] >= score_min]
-
-# ---------------------------------------------------------------------------
 # TABLEAU PRINCIPAL
 # ---------------------------------------------------------------------------
 st.subheader(f"Screener — {len(df)} actifs")
@@ -268,14 +326,11 @@ else:
     available = [c for c in display_cols.keys() if c in df.columns]
     df_display = df[available].rename(columns=display_cols)
     # Formatage
-    if "Prix" in df_display.columns:
-        df_display["Prix"] = df_display["Prix"].apply(
-            lambda x: f"{x:,.4f}" if isinstance(x, (int, float)) and x < 10 else f"{x:,.2f}" if isinstance(x, (int, float)) else x
-        )
-    if "Fair Value" in df_display.columns:
-        df_display["Fair Value"] = df_display["Fair Value"].apply(
-            lambda x: f"{x:,.2f}" if pd.notna(x) and x else "—"
-        )
+    for col in ["Prix", "Fair Value"]:
+        if col in df_display.columns:
+            df_display[col] = df_display[col].apply(
+                lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
+            )
     if "Upside %" in df_display.columns:
         df_display["Upside %"] = df_display["Upside %"].apply(
             lambda x: f"{x:+.1f}%" if isinstance(x, (int, float)) and x != 0 else "—"
@@ -302,7 +357,7 @@ else:
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# FICHE DÉTAIL ACTIF (réécrite pour éviter toute référence à _gen_ai_conclusion)
+# FICHE DÉTAIL ACTIF (avec session_state.selected_ticker et assistant IA)
 # ---------------------------------------------------------------------------
 st.subheader("Analyse détaillée d'un actif")
 ticker_detail = st.selectbox(
@@ -312,12 +367,14 @@ ticker_detail = st.selectbox(
     key="detail_select"
 )
 
+# Mettre à jour la session_state pour l'assistant IA
+st.session_state.selected_ticker = ticker_detail
+
 if ticker_detail:
     row = df_scored[df_scored["ticker"] == ticker_detail]
     if not row.empty:
         r = row.iloc[0]
 
-        # 3 colonnes : infos générales, score, signal
         d_col1, d_col2, d_col3 = st.columns([2, 2, 2])
         with d_col1:
             st.markdown(f"""
@@ -361,7 +418,6 @@ if ticker_detail:
             """, unsafe_allow_html=True)
 
         st.write("")
-        # Graphiques
         g_col1, g_col2 = st.columns([3, 2])
         with g_col1:
             dates  = r.get("hist_dates", [])
@@ -378,22 +434,20 @@ if ticker_detail:
             )
             st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
 
-        # Ratios fondamentaux
         st.markdown("**Ratios fondamentaux**")
         ratio_cols = st.columns(6)
         ratios = [
-            ("P/E",        r.get("pe"),       lambda x: f"{x:.1f}x"),
-            ("P/B",        r.get("pb"),       lambda x: f"{x:.2f}x"),
-            ("ROE",        r.get("roe"),      lambda x: f"{x*100:.1f}%" if x is not None and x<1 else f"{x:.1f}%"),
-            ("Dette/EQ",   r.get("debt_eq"),  lambda x: f"{x:.0f}%"),
-            ("EV/EBITDA",  r.get("ev_ebitda"),lambda x: f"{x:.1f}x"),
-            ("RSI",        r.get("rsi"),      lambda x: f"{x:.0f}"),
+            ("P/E",        r.get("pe"),       lambda x: f"{x:.1f}x" if x else "—"),
+            ("P/B",        r.get("pb"),       lambda x: f"{x:.2f}x" if x else "—"),
+            ("ROE",        r.get("roe"),      lambda x: f"{x*100:.1f}%" if x and x<1 else f"{x:.1f}%" if x else "—"),
+            ("Dette/EQ",   r.get("debt_eq"),  lambda x: f"{x:.0f}%" if x else "—"),
+            ("EV/EBITDA",  r.get("ev_ebitda"),lambda x: f"{x:.1f}x" if x else "—"),
+            ("RSI",        r.get("rsi"),      lambda x: f"{x:.0f}" if x else "—"),
         ]
         for col, (label, val, fmt) in zip(ratio_cols, ratios):
             display = fmt(val) if val is not None else "—"
             col.metric(label, display)
 
-        # Conclusion simple (remplace _gen_ai_conclusion)
         st.markdown("""
         <div style="background:#111827;border-left:3px solid #10B981;border-radius:0 10px 10px 0;padding:16px 20px;margin-top:8px">
             <div style="font-size:12px;font-weight:600;color:#10B981;margin-bottom:6px;letter-spacing:1px">ANALYSE PHRONESIS</div>
@@ -404,6 +458,19 @@ if ticker_detail:
         """, unsafe_allow_html=True)
 
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# ASSISTANT IA (avec contexte de l'actif sélectionné)
+# ---------------------------------------------------------------------------
+# Récupérer les données de l'actif sélectionné (si existant)
+selected_ticker = st.session_state.get("selected_ticker", None)
+df_row = None
+if selected_ticker and "df_scored" in st.session_state:
+    df = st.session_state.df_scored
+    row = df[df["ticker"] == selected_ticker]
+    if not row.empty:
+        df_row = row.iloc[0].to_dict()
+show_ai_assistant(df_row=df_row, ticker=selected_ticker)
 
 # ---------------------------------------------------------------------------
 # GRAPHIQUES GLOBAUX
