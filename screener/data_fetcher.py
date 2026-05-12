@@ -94,13 +94,43 @@ COINGECKO_IDS = {
 }
 
 def get_default_tickers():
-    """Liste par défaut pour un chargement rapide."""
+    """
+    Liste élargie à environ 118 actifs couvrant toutes les classes.
+    """
     return [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "JNJ", "V",
-        "SPY", "QQQ", "GLD", "EZA",
-        "BTC-USD", "ETH-USD", "SOL-USD",
-        "EURUSD=X", "GBPUSD=X", "USDJPY=X",
-        "GC=F", "CL=F",
+        # Actions US Large Cap (60)
+        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "BRK-B", "JPM", "JNJ", "V",
+        "WMT", "PG", "UNH", "HD", "DIS", "NFLX", "ADBE", "CRM", "NVDA", "AMD",
+        "INTC", "CSCO", "IBM", "ORCL", "KO", "PEP", "COST", "CVX", "XOM", "BAC",
+        "WFC", "C", "GS", "MS", "AXP", "CAT", "GE", "BA", "MMM", "HON",
+        "UPS", "FDX", "NKE", "SBUX", "MCD", "CMCSA", "T", "VZ", "TMUS", "ABT",
+        "TMO", "MRK", "PFE", "ABBV", "LLY", "BMY", "GILD", "REGN", "VRTX", "SPGI",
+        "BLK", "SCHW", "ICE", "DE", "LMT", "NOC", "RTX", "GD", "LHX", "ADP",
+        "PAYX", "CTSH", "IT", "AON", "MMC", "ZTS", "EW", "ISRG", "SYK", "MDT",
+        "BSX", "ALGN", "IDXX", "CHTR", "ROP", "SHW", "PPG", "ECL", "APD", "LIN",
+        "DOW", "DD", "FCX", "NEM", "GDX", "PLTR", "SNOW", "DDOG", "NET", "UBER",
+        "LYFT", "ABNB", "RBLX", "COIN", "SQ", "PYPL", "SHOP", "SPOT", "ROKU", "TTD",
+        "ZS", "MRNA", "BIIB", "ILMN", "WBA",
+
+        # ETF (20)
+        "SPY", "QQQ", "IVV", "VOO", "VTI", "VT", "BND", "AGG", "TLT", "IEF",
+        "LQD", "HYG", "GLD", "IAU", "SLV", "USO", "EEM", "VWO", "EWZ", "FXI",
+        "EFA", "VGK", "EWJ", "INDA", "ARKK", "ARKW", "QCLN", "ICLN", "XLE", "XLF",
+        "XLK", "XLV", "XLI", "XLY", "XLP", "XLU", "IBB", "XBI", "SMH", "SOXX",
+        "VTWO", "IWM", "IJH", "IJR", "EZA", "AFK", "NGE", "FLZA", "DBZA", "GAF",
+
+        # Crypto (15)
+        "BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "ADA-USD", "XRP-USD", "DOGE-USD",
+        "DOT-USD", "AVAX-USD", "MATIC-USD", "LINK-USD", "LTC-USD", "BCH-USD", "UNI-USD",
+        "ATOM-USD",
+
+        # Forex (15)
+        "EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X", "USDCAD=X",
+        "NZDUSD=X", "EURGBP=X", "EURJPY=X", "GBPJPY=X", "AUDJPY=X", "CADJPY=X",
+        "CHFJPY=X", "EURCHF=X", "GBPCHF=X",
+
+        # Commodités (8)
+        "GC=F", "SI=F", "CL=F", "NG=F", "HO=F", "RB=F", "ZW=F", "ZC=F",
     ]
 
 # ---------------------------------------------------------------------------
