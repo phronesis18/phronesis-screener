@@ -1,14 +1,14 @@
 """
 screener/valuation.py
-Phronesis Screener — moteur de valorisation multi-actifs v6
-SANS Graham Formula. Uniquement : P/E dynamique, DCF moderne, EV/Sales.
+Phronesis Screener — moteur de valorisation multi-actifs v7
+AVEC Graham Formula (basée sur secteur) + P/E dynamique + DCF + EV/Sales.
 """
 
 import math
 from typing import Optional, Dict, Any
 
 # ---------------------------------------------------------------------------
-# CONSTANTES SECTORIELLES (P/E de base pour le multiple dynamique)
+# CONSTANTES SECTORIELLES (P/E de base, growth pour Graham)
 # ---------------------------------------------------------------------------
 SECTOR_PE = {
     "Technology":               28.0,
@@ -26,6 +26,20 @@ SECTOR_PE = {
     "Crypto":                   None,
     "Forex":                    None,
     "Commodité":                None,
+}
+
+SECTOR_GROWTH = {
+    "Technology":              0.10,
+    "Communication Services":  0.08,
+    "Consumer Cyclical":       0.07,
+    "Consumer Defensive":      0.05,
+    "Healthcare":              0.08,
+    "Financial Services":      0.06,
+    "Industrials":             0.06,
+    "Basic Materials":         0.04,
+    "Real Estate":             0.04,
+    "Utilities":               0.03,
+    "Energy":                  0.04,
 }
 
 # ---------------------------------------------------------------------------
@@ -80,7 +94,17 @@ def dynamic_pe(row: Dict[str, Any], profile: str) -> float:
     return round(base * quality_premium, 1)
 
 # ---------------------------------------------------------------------------
-# LAYER 3 — MODERN DCF (3 phases)
+# LAYER 3 — GRAHAM FORMULA (modernisée, sectorielle)
+# ---------------------------------------------------------------------------
+def graham_formula(eps: float, sector: str = "Technology", risk_free: float = 0.044) -> Optional[float]:
+    """V = EPS × (8.5 + 2g) × (4.4 / Y) où g est le taux de croissance sectoriel."""
+    if not eps or eps <= 0:
+        return None
+    g = SECTOR_GROWTH.get(sector, 0.06) * 100   # en pourcentage
+    return round(eps * (8.5 + 2 * g) * (4.4 / (risk_free * 100)), 2)
+
+# ---------------------------------------------------------------------------
+# LAYER 4 — MODERN DCF (3 phases)
 # ---------------------------------------------------------------------------
 def dcf_modern(
     fcf: float,
@@ -109,7 +133,7 @@ def dcf_modern(
     return round(pv / shares, 2)
 
 # ---------------------------------------------------------------------------
-# LAYER 4 — QUALITY ENGINE
+# LAYER 5 — QUALITY ENGINE
 # ---------------------------------------------------------------------------
 def quality_score(row: Dict[str, Any]) -> float:
     roic_val = roic(row)
@@ -142,7 +166,7 @@ def quality_premium(score: float) -> float:
     else: return 0.85
 
 # ---------------------------------------------------------------------------
-# LAYER 5 — MOAT & NARRATIVE (uniquement pour hypergrowth)
+# LAYER 6 — MOAT & NARRATIVE
 # ---------------------------------------------------------------------------
 def moat_score(row: Dict[str, Any]) -> float:
     gross_margin = row.get("gross_margin", 0)
@@ -165,7 +189,7 @@ def narrative_premium(score: float, profile: str) -> float:
     else: return 1.0
 
 # ---------------------------------------------------------------------------
-# LAYER 6 — MARKET REGIME
+# LAYER 7 — MARKET REGIME
 # ---------------------------------------------------------------------------
 def market_regime_adjustment(row: Dict[str, Any]) -> float:
     volatility = row.get("volatility", 20)
@@ -183,22 +207,26 @@ def market_regime_adjustment(row: Dict[str, Any]) -> float:
     return max(0.80, min(1.20, factor))
 
 # ---------------------------------------------------------------------------
-# LAYER 7 — VALUATION AGGREGATOR (SANS GRAHAM)
+# LAYER 8 — VALUATION AGGREGATOR (AVEC GRAHAM)
 # ---------------------------------------------------------------------------
 def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
     eps = row.get("eps")
     price = row.get("price", 0)
     if not eps or eps <= 0:
-        # Fallback : on essaye EV/Sales si EPS absent
         return compute_sales_based_fair_value(row)
+
     profile = classify_company(row)
     row["profile"] = profile
+    sector = row.get("sector", "Technology")
 
     # 1. P/E dynamique
     target_pe = dynamic_pe(row, profile)
     fv_pe = round(eps * target_pe, 2)
 
-    # 2. DCF moderne
+    # 2. Graham Formula
+    fv_graham = graham_formula(eps, sector)
+
+    # 3. DCF moderne
     fcf = row.get("fcf")
     shares = row.get("shares_outstanding") or _estimate_shares(row)
     fv_dcf = None
@@ -213,31 +241,35 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
             transition_years=transition_years
         )
 
-    # 3. EV/Sales pour hypergrowth/speculative
-    fv_sales = None
-    if profile in ("hypergrowth", "speculative"):
-        fv_sales = compute_sales_based_fair_value(row)
+    # 4. EV/Sales (pour hypergrowth/speculative)
+    fv_sales = compute_sales_based_fair_value(row) if profile in ("hypergrowth", "speculative") else None
 
-    # Pondérations selon profil
+    # Pondérations selon profil (intégration de Graham)
     if profile == "value":
-        weights = {"pe": 0.60, "dcf": 0.40}
+        weights = {"pe": 0.40, "graham": 0.30, "dcf": 0.30}
     elif profile == "compounder":
-        weights = {"pe": 0.30, "dcf": 0.70}
+        weights = {"pe": 0.25, "graham": 0.15, "dcf": 0.60}
     elif profile == "hypergrowth":
-        weights = {"pe": 0.20, "dcf": 0.50, "sales": 0.30}
+        weights = {"pe": 0.15, "graham": 0.10, "dcf": 0.50, "sales": 0.25}
     elif profile == "speculative":
-        weights = {"pe": 0.10, "dcf": 0.45, "sales": 0.45}
+        weights = {"pe": 0.10, "graham": 0.10, "dcf": 0.40, "sales": 0.40}
     else:  # cyclical
-        weights = {"pe": 0.50, "dcf": 0.50}
+        weights = {"pe": 0.35, "graham": 0.25, "dcf": 0.40}
 
     candidates = []
     weights_list = []
     if fv_pe is not None:
-        candidates.append(fv_pe); weights_list.append(weights.get("pe", 0))
+        candidates.append(fv_pe)
+        weights_list.append(weights.get("pe", 0))
+    if fv_graham is not None:
+        candidates.append(fv_graham)
+        weights_list.append(weights.get("graham", 0))
     if fv_dcf is not None:
-        candidates.append(fv_dcf); weights_list.append(weights.get("dcf", 0))
+        candidates.append(fv_dcf)
+        weights_list.append(weights.get("dcf", 0))
     if fv_sales is not None:
-        candidates.append(fv_sales); weights_list.append(weights.get("sales", 0))
+        candidates.append(fv_sales)
+        weights_list.append(weights.get("sales", 0))
 
     if not candidates:
         return None
@@ -260,13 +292,11 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
     return round(fv_composite, 2)
 
 def compute_sales_based_fair_value(row: Dict[str, Any]) -> Optional[float]:
-    """Méthode alternative basée sur le chiffre d'affaires (EV/Sales)."""
     revenue = row.get("revenue")
     shares = row.get("shares_outstanding") or _estimate_shares(row)
     if not revenue or not shares or revenue <= 0 or shares <= 0:
         return None
     sales_per_share = revenue / shares
-    # Multiples typiques EV/Sales selon profil
     profile = row.get("profile", "value")
     if profile == "hypergrowth":
         multiple = 5.0
@@ -286,13 +316,59 @@ def _estimate_shares(row: Dict[str, Any]) -> Optional[float]:
     return None
 
 # ---------------------------------------------------------------------------
-# MULTI-ASSETS (inchangés)
+# MULTI-ASSETS (à compléter avec votre code existant)
 # ---------------------------------------------------------------------------
-def compute_fair_value_crypto(row): ...
-def compute_fair_value_forex(row): ...
-def compute_fair_value_commodity(row): ...
-def compute_fair_value_etf(row): ...
-def compute_fair_value(row):
+def compute_fair_value_crypto(row: Dict[str, Any]) -> Optional[float]:
+    # Exemple minimal ; remplacez par votre code
+    nvt = row.get("nvt")
+    price = row.get("price", 0)
+    if not price:
+        return None
+    if nvt:
+        if nvt < 20: mult = 1.35
+        elif nvt < 40: mult = 1.15
+        elif nvt < 65: mult = 1.00
+        elif nvt < 100: mult = 0.88
+        else: mult = 0.72
+    else:
+        mom = row.get("momentum_1m", 0)
+        if mom < -25: mult = 1.20
+        elif mom < -15: mult = 1.10
+        elif mom > 30: mult = 0.85
+        else: return None
+    return round(price * mult, 2)
+
+def compute_fair_value_forex(row: Dict[str, Any]) -> Optional[float]:
+    price = row.get("price", 0)
+    mom_1m = row.get("momentum_1m", 0)
+    mom_3m = row.get("momentum_3m", 0)
+    if not price:
+        return None
+    if mom_1m < -3 and mom_3m < -6:
+        return round(price * 1.04, 5)
+    elif mom_1m > 3 and mom_3m > 6:
+        return round(price * 0.96, 5)
+    return None
+
+def compute_fair_value_commodity(row: Dict[str, Any]) -> Optional[float]:
+    price = row.get("price", 0)
+    drawdown = row.get("drawdown", 0)
+    rsi = row.get("rsi", 50)
+    mom_1m = row.get("momentum_1m", 0)
+    if not price:
+        return None
+    if drawdown < -20 and rsi < 35:
+        return round(price * 1.22, 2)
+    elif drawdown < -12 and rsi < 45:
+        return round(price * 1.10, 2)
+    elif rsi > 75 and mom_1m > 15:
+        return round(price * 0.88, 2)
+    return None
+
+def compute_fair_value_etf(row: Dict[str, Any]) -> Optional[float]:
+    return None
+
+def compute_fair_value(row: Dict[str, Any]) -> Optional[float]:
     asset_type = row.get("asset_type", "Action")
     if asset_type == "Crypto":
         return compute_fair_value_crypto(row)
@@ -305,5 +381,12 @@ def compute_fair_value(row):
     else:
         return compute_fair_value_action(row)
 
-def upside_pct(price, fv): ...
-def margin_of_safety(fv, price, margin=0.25): ...
+def upside_pct(price: float, fair_value: float) -> float:
+    if price and price > 0 and fair_value and fair_value > 0:
+        return round((fair_value / price - 1) * 100, 1)
+    return 0.0
+
+def margin_of_safety(fair_value: float, price: float, margin: float = 0.25) -> Optional[float]:
+    if fair_value and price and price > 0:
+        return round(fair_value * (1 - margin), 2)
+    return None
