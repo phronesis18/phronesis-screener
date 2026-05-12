@@ -1,30 +1,17 @@
 """
 screener/data_fetcher.py
-Phronesis Screener — couche data 100% gratuite
-Sources : yfinance (actions/ETF/forex), CoinGecko (crypto)
-Liste exhaustive des actifs pour recherche manuelle, mais chargement initial restreint.
+Phronesis Screener — couche data avec listes exhaustives d'actifs
+Ajout des séries High/Low pour calcul des pivots.
 """
 
 import yfinance as yf
 import pandas as pd
 import requests
 import time
-import math
 
 # ---------------------------------------------------------------------------
-# CONSTANTES
+# LISTES EXHAUSTIVES D'ACTIFS
 # ---------------------------------------------------------------------------
-
-COINGECKO_IDS = {
-    "BTC-USD": "bitcoin",
-    "ETH-USD": "ethereum",
-    "BNB-USD": "binancecoin",
-    "SOL-USD": "solana",
-    "ADA-USD": "cardano",
-    "XRP-USD": "ripple",
-}
-
-# Mapping ticker -> type d'actif (exhaustif)
 ASSET_TYPES = {
     # === Actions US Large Cap ===
     "AAPL": "Action", "MSFT": "Action", "GOOGL": "Action", "AMZN": "Action",
@@ -56,7 +43,6 @@ ASSET_TYPES = {
     "COIN": "Action", "SQ": "Action", "PYPL": "Action", "SHOP": "Action",
     "SPOT": "Action", "ROKU": "Action", "TTD": "Action", "ZS": "Action",
     "MRNA": "Action", "BIIB": "Action", "ILMN": "Action", "WBA": "Action",
-
     # === ETF ===
     "SPY": "ETF", "QQQ": "ETF", "IVV": "ETF", "VOO": "ETF",
     "VTI": "ETF", "VT": "ETF", "BND": "ETF", "AGG": "ETF",
@@ -71,7 +57,6 @@ ASSET_TYPES = {
     "VTWO": "ETF", "IWM": "ETF", "IJH": "ETF", "IJR": "ETF",
     "EZA": "ETF Afrique", "AFK": "ETF Afrique", "NGE": "ETF Afrique",
     "FLZA": "ETF Afrique", "DBZA": "ETF Afrique", "GAF": "ETF Afrique",
-
     # === Crypto ===
     "BTC-USD": "Crypto", "ETH-USD": "Crypto", "BNB-USD": "Crypto",
     "SOL-USD": "Crypto", "ADA-USD": "Crypto", "XRP-USD": "Crypto",
@@ -81,14 +66,12 @@ ASSET_TYPES = {
     "XLM-USD": "Crypto", "ALGO-USD": "Crypto", "VET-USD": "Crypto",
     "FIL-USD": "Crypto", "ICP-USD": "Crypto", "NEAR-USD": "Crypto",
     "APT-USD": "Crypto", "ARB-USD": "Crypto", "OP-USD": "Crypto",
-
     # === Forex ===
     "EURUSD=X": "Forex", "GBPUSD=X": "Forex", "USDJPY=X": "Forex",
     "USDCHF=X": "Forex", "AUDUSD=X": "Forex", "USDCAD=X": "Forex",
     "NZDUSD=X": "Forex", "EURGBP=X": "Forex", "EURJPY=X": "Forex",
     "GBPJPY=X": "Forex", "AUDJPY=X": "Forex", "CADJPY=X": "Forex",
     "CHFJPY=X": "Forex", "EURCHF=X": "Forex", "GBPCHF=X": "Forex",
-
     # === Commodités ===
     "GC=F": "Commodité", "SI=F": "Commodité", "CL=F": "Commodité",
     "NG=F": "Commodité", "HO=F": "Commodité", "RB=F": "Commodité",
@@ -99,21 +82,21 @@ ASSET_TYPES = {
 }
 
 DISPLAY_NAMES = {
-    "EURUSD=X": "EUR/USD", "GBPUSD=X": "GBP/USD",
-    "USDJPY=X": "USD/JPY", "USDCHF=X": "USD/CHF",
-    "AUDUSD=X": "AUD/USD",
-    "GC=F": "Or", "SI=F": "Argent", "CL=F": "Pétrole WTI", "NG=F": "Gaz naturel",
-    "EZA": "ETF Afrique Sud", "AFK": "ETF Afrique", "NGE": "ETF Nigeria",
+    "EURUSD=X": "EUR/USD", "GBPUSD=X": "GBP/USD", "USDJPY=X": "USD/JPY",
+    "USDCHF=X": "USD/CHF", "AUDUSD=X": "AUD/USD", "GC=F": "Or",
+    "SI=F": "Argent", "CL=F": "Pétrole WTI", "NG=F": "Gaz naturel",
     "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
 }
 
-# ---------------------------------------------------------------------------
-# LISTE RESTREINTE POUR LE CHARGEMENT INITIAL (performant)
-# ---------------------------------------------------------------------------
+COINGECKO_IDS = {
+    "BTC-USD": "bitcoin", "ETH-USD": "ethereum", "BNB-USD": "binancecoin",
+    "SOL-USD": "solana", "ADA-USD": "cardano", "XRP-USD": "ripple",
+}
+
 def get_default_tickers():
-    """Retourne une liste réduite d'actifs pour démarrer rapidement."""
+    """Liste par défaut pour un chargement rapide."""
     return [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "JPM", "JNJ", "V", "NVDA",
+        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "JNJ", "V",
         "SPY", "QQQ", "GLD", "EZA",
         "BTC-USD", "ETH-USD", "SOL-USD",
         "EURUSD=X", "GBPUSD=X", "USDJPY=X",
@@ -121,60 +104,101 @@ def get_default_tickers():
     ]
 
 # ---------------------------------------------------------------------------
-# FONCTIONS DE FETCH (complètes, basées sur ton code existant)
+# HELPERS
 # ---------------------------------------------------------------------------
+def _safe(val):
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if f != f or abs(f) > 1e15:
+            return None
+        return round(f, 4)
+    except Exception:
+        return None
 
-def fetch_ticker(ticker: str) -> dict | None:
-    """Récupère toutes les données nécessaires pour un ticker."""
+def _calc_rsi(closes, period=14):
+    if len(closes) < period+1:
+        return 50.0
+    delta = closes.diff().dropna()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = gain / loss.replace(0, 1e-9)
+    rsi = 100 - 100/(1+rs)
+    return float(rsi.iloc[-1]) if not rsi.empty else 50.0
+
+def _calc_momentum(closes, periods):
+    if len(closes) < periods+1:
+        return 0.0
+    try:
+        return float((closes.iloc[-1] / closes.iloc[-periods-1] - 1)*100)
+    except Exception:
+        return 0.0
+
+# ---------------------------------------------------------------------------
+# FETCH PRINCIPAL
+# ---------------------------------------------------------------------------
+def fetch_ticker(ticker: str):
     try:
         t = yf.Ticker(ticker)
         info = t.info
-
-        price = (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
-            or info.get("ask")
-            or info.get("bid")
-            or 0
-        )
+        price = (info.get("currentPrice") or info.get("regularMarketPrice") or
+                 info.get("ask") or info.get("bid") or 0)
         if not price or price == 0:
             return None
-
         hist = t.history(period="3mo", interval="1d")
         if hist.empty or len(hist) < 5:
             return None
 
-        # Fondamentaux
+        closes = hist["Close"]
+        highs = hist["High"]
+        lows = hist["Low"]
+
+        # --- EPS amélioré (correction Tesla) ---
+        eps_yahoo = info.get("trailingEps")
+        shares = info.get("sharesOutstanding")
+        net_income = info.get("netIncomeToCommon")
+        eps_calc = None
+        if net_income and shares and shares > 0 and net_income > 0:
+            eps_calc = net_income / shares
+        eps = None
+        if eps_yahoo and eps_yahoo > 0:
+            eps = eps_yahoo
+            # Si EPS suspect (prix/EPS > 80) et une meilleure valeur calculée existe, on remplace
+            if price > 0 and (price / eps_yahoo) > 80 and eps_calc and eps_calc > eps_yahoo * 1.5:
+                eps = eps_calc
+        elif eps_calc and eps_calc > 0:
+            eps = eps_calc
+
+        # Autres fondamentaux
         pe = info.get("trailingPE")
+        if pe is None and eps and price and price > 0:
+            pe = price / eps
         pb = info.get("priceToBook")
         roe = info.get("returnOnEquity")
         debt_eq = info.get("debtToEquity")
         fcf = info.get("freeCashflow")
-        eps = info.get("trailingEps")
         bvps = info.get("bookValue")
         ev_ebitda = info.get("enterpriseToEbitda")
-        revenue = info.get("totalRevenue")
         market_cap = info.get("marketCap")
         sector = info.get("sector", "—")
         short_name = info.get("shortName", ticker)
         currency = info.get("currency", "USD")
+        revenue = info.get("totalRevenue")
+        operating_margin = info.get("operatingMargins")
+        gross_margin = info.get("grossMargins")
+        revenue_growth = info.get("revenueGrowth")
+        beta = info.get("beta")
 
         # Techniques
-        closes = hist["Close"]
-        volumes = hist["Volume"] if "Volume" in hist.columns else pd.Series([0])
-
         rsi = _calc_rsi(closes, 14)
         mom_1m = _calc_momentum(closes, 22)
-        mom_3m = _calc_momentum(closes, len(closes) - 1)
-        volatility = float(closes.pct_change().dropna().std() * (252 ** 0.5) * 100)
+        mom_3m = _calc_momentum(closes, len(closes)-1)
+        volatility = float(closes.pct_change().dropna().std() * (252**0.5)*100)
         rolling_max = closes.cummax()
-        drawdown = float(((closes - rolling_max) / rolling_max).min() * 100)
-        vol_avg_20 = float(volumes.tail(20).mean()) if len(volumes) >= 20 else 0
+        drawdown = float(((closes - rolling_max) / rolling_max).min()*100)
 
-        # Nombre d'actions estimé
-        shares_outstanding = None
-        if market_cap and price > 0:
-            shares_outstanding = market_cap / price
+        shares_outstanding = shares or (market_cap/price if market_cap and price else None)
 
         return {
             "ticker": ticker,
@@ -193,22 +217,26 @@ def fetch_ticker(ticker: str) -> dict | None:
             "bvps": _safe(bvps),
             "ev_ebitda": _safe(ev_ebitda),
             "revenue": revenue,
+            "revenue_growth": _safe(revenue_growth) if revenue_growth else None,
+            "operating_margin": _safe(operating_margin) if operating_margin else None,
+            "gross_margin": _safe(gross_margin) if gross_margin else None,
+            "beta": _safe(beta) if beta else None,
             "shares_outstanding": shares_outstanding,
             "rsi": round(rsi, 1),
             "momentum_1m": round(mom_1m, 2),
             "momentum_3m": round(mom_3m, 2),
             "volatility": round(volatility, 1),
             "drawdown": round(drawdown, 1),
-            "vol_avg_20": round(vol_avg_20, 0),
             "hist_closes": closes.tail(60).tolist(),
+            "hist_highs": highs.tail(60).tolist(),
+            "hist_lows": lows.tail(60).tolist(),
             "hist_dates": [str(d.date()) for d in closes.tail(60).index],
         }
     except Exception as e:
         print(f"Erreur fetch {ticker}: {e}")
         return None
 
-def fetch_batch(tickers: list, delay: float = 0.3) -> pd.DataFrame:
-    """Récupère un lot de tickers avec délai."""
+def fetch_batch(tickers, delay=0.3):
     rows = []
     for tk in tickers:
         data = fetch_ticker(tk)
@@ -217,8 +245,7 @@ def fetch_batch(tickers: list, delay: float = 0.3) -> pd.DataFrame:
         time.sleep(delay)
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
-def fetch_crypto_metrics(ticker: str) -> dict:
-    """Récupère les métriques crypto via CoinGecko."""
+def fetch_crypto_metrics(ticker):
     cg_id = COINGECKO_IDS.get(ticker)
     if not cg_id:
         return {}
@@ -232,44 +259,6 @@ def fetch_crypto_metrics(ticker: str) -> dict:
         mc = mkt.get("market_cap", {}).get("usd", 0)
         vol = mkt.get("total_volume", {}).get("usd", 1)
         nvt = round(mc / vol, 2) if vol > 0 else None
-        return {
-            "nvt": nvt,
-            "circulating_supply": mkt.get("circulating_supply"),
-            "ath": mkt.get("ath", {}).get("usd"),
-            "ath_change_pct": mkt.get("ath_change_percentage", {}).get("usd"),
-        }
+        return {"nvt": nvt}
     except Exception:
         return {}
-
-# ---------------------------------------------------------------------------
-# HELPERS
-# ---------------------------------------------------------------------------
-
-def _calc_rsi(closes: pd.Series, period: int = 14) -> float:
-    if len(closes) < period + 1:
-        return 50.0
-    delta = closes.diff().dropna()
-    gain = delta.clip(lower=0).rolling(period).mean()
-    loss = (-delta.clip(upper=0)).rolling(period).mean()
-    rs = gain / loss.replace(0, 1e-9)
-    rsi = 100 - 100 / (1 + rs)
-    return float(rsi.iloc[-1]) if not rsi.empty else 50.0
-
-def _calc_momentum(closes: pd.Series, periods: int) -> float:
-    if len(closes) < periods + 1:
-        return 0.0
-    try:
-        return float((closes.iloc[-1] / closes.iloc[-periods - 1] - 1) * 100)
-    except Exception:
-        return 0.0
-
-def _safe(val) -> float | None:
-    if val is None:
-        return None
-    try:
-        f = float(val)
-        if f != f or abs(f) > 1e15:
-            return None
-        return round(f, 4)
-    except Exception:
-        return None
