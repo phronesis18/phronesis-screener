@@ -212,21 +212,42 @@ def market_regime_adjustment(row: Dict[str, Any]) -> float:
 def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
     eps = row.get("eps")
     price = row.get("price", 0)
-    if not eps or eps <= 0:
-        return compute_sales_based_fair_value(row)
-
+    
+    # --- Détection d'EPS invalide (trop faible) ---
+    eps_invalid = False
+    if eps is not None and eps > 0 and price > 0:
+        pe_ratio = price / eps
+        if pe_ratio > 80:                # PER > 80 → suspect
+            eps_invalid = True
+        elif eps < 0.5 and price > 100:   # EPS < 0.5$ et prix > 100$ → suspect
+            eps_invalid = True
+    elif not eps or eps <= 0:
+        eps_invalid = True
+    
+    # Si EPS invalide, on bascule sur EV/Sales ou moyenne des pivots
+    if eps_invalid:
+        # 1. Essayer EV/Sales (basé sur le chiffre d'affaires)
+        fv_sales = compute_sales_based_fair_value(row)
+        if fv_sales is not None:
+            if price > 0:
+                fv_sales = max(price * 0.3, min(price * 2.5, fv_sales))
+            return round(fv_sales, 2)
+        # 2. Sinon, utiliser la moyenne des pivots techniques
+        pivot_avg = compute_pivot_average(row)
+        if pivot_avg is not None:
+            return pivot_avg
+        # 3. Dernier recours : None (pas de fair value)
+        return None
+    
+    # --- Si EPS normal, on continue avec le calcul composite classique ---
     profile = classify_company(row)
     row["profile"] = profile
     sector = row.get("sector", "Technology")
-
-    # 1. P/E dynamique
+    
     target_pe = dynamic_pe(row, profile)
     fv_pe = round(eps * target_pe, 2)
-
-    # 2. Graham Formula
     fv_graham = graham_formula(eps, sector)
-
-    # 3. DCF moderne
+    
     fcf = row.get("fcf")
     shares = row.get("shares_outstanding") or _estimate_shares(row)
     fv_dcf = None
@@ -240,6 +261,58 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
             high_growth_years=high_growth_years,
             transition_years=transition_years
         )
+    
+    fv_sales = compute_sales_based_fair_value(row) if profile in ("hypergrowth", "speculative") else None
+    
+    # Pondérations selon profil
+    if profile == "value":
+        weights = {"pe": 0.40, "graham": 0.30, "dcf": 0.30}
+    elif profile == "compounder":
+        weights = {"pe": 0.25, "graham": 0.15, "dcf": 0.60}
+    elif profile == "hypergrowth":
+        weights = {"pe": 0.15, "graham": 0.10, "dcf": 0.50, "sales": 0.25}
+    elif profile == "speculative":
+        weights = {"pe": 0.10, "graham": 0.10, "dcf": 0.40, "sales": 0.40}
+    else:
+        weights = {"pe": 0.35, "graham": 0.25, "dcf": 0.40}
+    
+    candidates = []
+    weights_list = []
+    if fv_pe is not None:
+        candidates.append(fv_pe); weights_list.append(weights.get("pe", 0))
+    if fv_graham is not None:
+        candidates.append(fv_graham); weights_list.append(weights.get("graham", 0))
+    if fv_dcf is not None:
+        candidates.append(fv_dcf); weights_list.append(weights.get("dcf", 0))
+    if fv_sales is not None:
+        candidates.append(fv_sales); weights_list.append(weights.get("sales", 0))
+    
+    if not candidates:
+        return None
+    
+    total_w = sum(weights_list)
+    norm_weights = [w / total_w for w in weights_list]
+    fv_composite = sum(v * w for v, w in zip(candidates, norm_weights))
+    
+    # Primes
+    q_score = quality_score(row)
+    q_premium = quality_premium(q_score)
+    m_score = moat_score(row)
+    n_premium = narrative_premium(m_score, profile)
+    regime_factor = market_regime_adjustment(row)
+    fv_composite = fv_composite * q_premium * n_premium * regime_factor
+    
+    # Garde-fou original (écart trop grand → moyenne pivots)
+    pivot_avg = compute_pivot_average(row)
+    if pivot_avg is not None and price > 0:
+        ratio = fv_composite / price
+        if ratio > 3.0 or ratio < 0.33:
+            fv_composite = pivot_avg
+    
+    # Bornage final
+    if price > 0:
+        fv_composite = max(price * 0.1, min(price * 4.0, fv_composite))
+    return round(fv_composite, 2)
 
     # 4. EV/Sales (pour hypergrowth/speculative)
     fv_sales = compute_sales_based_fair_value(row) if profile in ("hypergrowth", "speculative") else None
