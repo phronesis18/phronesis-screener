@@ -23,25 +23,84 @@ COINGECKO_IDS = {
 }
 
 ASSET_TYPES = {
-    # Actions US
-    "AAPL": "Action", "MSFT": "Action", "GOOGL": "Action",
-    "AMZN": "Action", "META": "Action", "TSLA": "Action",
-    "BRK-B": "Action", "JPM": "Action", "JNJ": "Action",
-    "WMT": "Action", "V": "Action", "MA": "Action",
-    # ETF
-    "SPY": "ETF", "QQQ": "ETF", "GLD": "ETF",
-    "VTI": "ETF", "AGG": "ETF", "EEM": "ETF",
+    # Actions US Large Cap
+    "AAPL": "Action", "MSFT": "Action", "GOOGL": "Action", "AMZN": "Action",
+    "META": "Action", "TSLA": "Action", "BRK-B": "Action", "JPM": "Action",
+    "JNJ": "Action", "WMT": "Action", "V": "Action", "MA": "Action",
+    "PG": "Action", "UNH": "Action", "HD": "Action", "DIS": "Action",
+    "NFLX": "Action", "ADBE": "Action", "CRM": "Action", "NVDA": "Action",
+    "AMD": "Action", "INTC": "Action", "CSCO": "Action", "IBM": "Action",
+    "ORCL": "Action", "KO": "Action", "PEP": "Action", "COST": "Action",
+    "CVX": "Action", "XOM": "Action", "BAC": "Action", "WFC": "Action",
+    "C": "Action", "GS": "Action", "MS": "Action", "AXP": "Action",
+    "CAT": "Action", "GE": "Action", "BA": "Action", "MMM": "Action",
+    "HON": "Action", "UPS": "Action", "FDX": "Action", "NKE": "Action",
+    "SBUX": "Action", "MCD": "Action", "CMCSA": "Action", "T": "Action",
+    "VZ": "Action", "TMUS": "Action", "ABT": "Action", "TMO": "Action",
+    "MRK": "Action", "PFE": "Action", "ABBV": "Action", "LLY": "Action",
+    "BMY": "Action", "GILD": "Action", "REGN": "Action", "VRTX": "Action",
+    "SPGI": "Action", "BLK": "Action", "SCHW": "Action", "ICE": "Action",
+    "DE": "Action", "LMT": "Action", "NOC": "Action", "RTX": "Action",
+    "GD": "Action", "LHX": "Action", "ADP": "Action", "PAYX": "Action",
+    "CTSH": "Action", "IT": "Action", "AON": "Action", "MMC": "Action",
+    "ZTS": "Action", "EW": "Action", "ISRG": "Action", "SYK": "Action",
+    "MDT": "Action", "BSX": "Action", "ALGN": "Action", "IDXX": "Action",
+    "CHTR": "Action", "ROP": "Action", "SHW": "Action", "PPG": "Action",
+    "ECL": "Action", "APD": "Action", "LIN": "Action", "DOW": "Action",
+    "DD": "Action", "FCX": "Action", "NEM": "Action", "GDX": "Action",
+    # mineurs or
+    "PLTR": "Action", "SNOW": "Action", "DDOG": "Action", "NET": "Action",
+    "UBER": "Action", "LYFT": "Action", "ABNB": "Action", "RBLX": "Action",
+    "COIN": "Action", "SQ": "Action", "PYPL": "Action", "SHOP": "Action",
+    "SPOT": "Action", "ROKU": "Action", "TTD": "Action", "ZS": "Action",
+    "MRNA": "Action", "BIIB": "Action", "ILMN": "Action", "WBA": "Action",
+    # ETF (US & international)
+    "SPY": "ETF", "QQQ": "ETF", "IVV": "ETF", "VOO": "ETF",
+    "VTI": "ETF", "VT": "ETF", "BND": "ETF", "AGG": "ETF",
+    "TLT": "ETF", "IEF": "ETF", "LQD": "ETF", "HYG": "ETF",
+    "GLD": "ETF", "IAU": "ETF", "SLV": "ETF", "USO": "ETF",
+    "EEM": "ETF", "VWO": "ETF", "EWZ": "ETF", "FXI": "ETF",
+    "EFA": "ETF", "VGK": "ETF", "EWJ": "ETF", "INDA": "ETF",
+    "ARKK": "ETF", "ARKW": "ETF", "QCLN": "ETF", "ICLN": "ETF",
+    "XLE": "ETF", "XLF": "ETF", "XLK": "ETF", "XLV": "ETF",
+    "XLI": "ETF", "XLY": "ETF", "XLP": "ETF", "XLU": "ETF",
+    "IBB": "ETF", "XBI": "ETF", "SMH": "ETF", "SOXX": "ETF",
+    "VTWO": "ETF", "IWM": "ETF", "IJH": "ETF", "IJR": "ETF",
     # Crypto
     "BTC-USD": "Crypto", "ETH-USD": "Crypto", "BNB-USD": "Crypto",
     "SOL-USD": "Crypto", "ADA-USD": "Crypto", "XRP-USD": "Crypto",
+    "DOGE-USD": "Crypto", "DOT-USD": "Crypto", "AVAX-USD": "Crypto",
+    "MATIC-USD": "Crypto", "LINK-USD": "Crypto", "LTC-USD": "Crypto",
+    "BCH-USD": "Crypto", "UNI-USD": "Crypto", "ATOM-USD": "Crypto",
+    "XLM-USD": "Crypto", "ALGO-USD": "Crypto", "VET-USD": "Crypto",
+    "FIL-USD": "Crypto", "ICP-USD": "Crypto", "NEAR-USD": "Crypto",
+    "APT-USD": "Crypto", "ARB-USD": "Crypto", "OP-USD": "Crypto",
     # Forex
     "EURUSD=X": "Forex", "GBPUSD=X": "Forex", "USDJPY=X": "Forex",
-    "USDCHF=X": "Forex", "AUDUSD=X": "Forex",
+    "USDCHF=X": "Forex", "AUDUSD=X": "Forex", "USDCAD=X": "Forex",
+    "NZDUSD=X": "Forex", "EURGBP=X": "Forex", "EURJPY=X": "Forex",
+    "GBPJPY=X": "Forex", "AUDJPY=X": "Forex", "CADJPY=X": "Forex",
+    "CHFJPY=X": "Forex", "EURCHF=X": "Forex", "GBPCHF=X": "Forex",
     # Matières premières
-    "GC=F": "Commodité", "SI=F": "Commodité", "CL=F": "Commodité",
-    "NG=F": "Commodité",
+    "GC=F": "Commodité",   # Or
+    "SI=F": "Commodité",   # Argent
+    "CL=F": "Commodité",   # Pétrole WTI
+    "NG=F": "Commodité",   # Gaz naturel
+    "HO=F": "Commodité",   # Fuel oil
+    "RB=F": "Commodité",   # Essence RBOB
+    "ZW=F": "Commodité",   # Blé
+    "ZC=F": "Commodité",   # Maïs
+    "ZS=F": "Commodité",   # Soja
+    "KC=F": "Commodité",   # Café
+    "CT=F": "Commodité",   # Coton
+    "SB=F": "Commodité",   # Sucre
+    "CC=F": "Commodité",   # Cacao
+    "HG=F": "Commodité",   # Cuivre
+    "LB=F": "Commodité",   # Bois
+    "LE=F": "Commodité",   # Bétail
     # Afrique / Marchés émergents (via ETF)
     "EZA": "ETF Afrique", "AFK": "ETF Afrique", "NGE": "ETF Afrique",
+    "FLZA": "ETF Afrique", "DBZA": "ETF Afrique", "GAF": "ETF Afrique",
 }
 
 DISPLAY_NAMES = {
