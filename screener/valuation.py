@@ -225,7 +225,7 @@ def compute_sales_based_fair_value(row: Dict[str, Any]) -> Optional[float]:
     sales_per_share = revenue / shares
     profile = row.get("profile", "value")
     if profile == "hypergrowth":
-        multiple = 5.0
+        multiple = 7.0
     elif profile == "speculative":
         multiple = 4.0
     elif profile == "compounder":
