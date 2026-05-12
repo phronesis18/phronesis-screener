@@ -1,7 +1,7 @@
 """
 screener/valuation.py
 Phronesis Screener — moteur de valorisation multi-actifs v9
-Avec garde-fou pivot average et détection EPS invalide.
+Avec garde-fou pivot average, détection EPS invalide, et retour None au lieu de NaN.
 """
 
 import math
@@ -185,10 +185,9 @@ def market_regime_adjustment(row: Dict[str, Any]) -> float:
     return max(0.80, min(1.20, factor))
 
 # ---------------------------------------------------------------------------
-# LAYER 8 — PIVOT AVERAGE (garde-fou)
+# LAYER 8 — PIVOT AVERAGE
 # ---------------------------------------------------------------------------
 def compute_pivot_average(row: Dict[str, Any]) -> Optional[float]:
-    """Calcule la moyenne des prix pivots (PP, S1, R1) sur les N dernières séances (max 20 jours)."""
     highs = row.get("hist_highs")
     lows = row.get("hist_lows")
     closes = row.get("hist_closes")
@@ -216,7 +215,7 @@ def compute_pivot_average(row: Dict[str, Any]) -> Optional[float]:
     return round(sum(pivots) / len(pivots), 2)
 
 # ---------------------------------------------------------------------------
-# LAYER 9 — VALUATION AGGREGATOR (avec fallback sur EV/Sales et pivots)
+# LAYER 9 — VALUATION AGGREGATOR
 # ---------------------------------------------------------------------------
 def compute_sales_based_fair_value(row: Dict[str, Any]) -> Optional[float]:
     revenue = row.get("revenue")
@@ -245,19 +244,19 @@ def _estimate_shares(row: Dict[str, Any]) -> Optional[float]:
 def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
     eps = row.get("eps")
     price = row.get("price", 0)
-    
-    # Détection d'EPS invalide (trop faible)
+
+    # Détection EPS invalide
     eps_invalid = False
     if eps is not None and eps > 0 and price > 0:
         pe_ratio = price / eps
-        if pe_ratio > 80:               # PER > 80 → suspect
+        if pe_ratio > 80:
             eps_invalid = True
-        elif eps < 0.5 and price > 100:  # EPS < 0.5$ et prix > 100$ → suspect
+        elif eps < 0.5 and price > 100:
             eps_invalid = True
     elif not eps or eps <= 0:
         eps_invalid = True
-    
-    # Si EPS invalide, fallback sur EV/Sales puis pivots
+
+    # Fallback en cas d'EPS invalide
     if eps_invalid:
         fv_sales = compute_sales_based_fair_value(row)
         if fv_sales is not None:
@@ -269,15 +268,15 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
             return pivot_avg
         return None
 
-    # EPS normal : calcul composite
+    # EPS normal
     profile = classify_company(row)
     row["profile"] = profile
     sector = row.get("sector", "Technology")
-    
+
     target_pe = dynamic_pe(row, profile)
     fv_pe = round(eps * target_pe, 2)
     fv_graham = graham_formula(eps, sector)
-    
+
     fcf = row.get("fcf")
     shares = row.get("shares_outstanding") or _estimate_shares(row)
     fv_dcf = None
@@ -291,9 +290,9 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
             high_growth_years=high_growth_years,
             transition_years=transition_years
         )
-    
+
     fv_sales = compute_sales_based_fair_value(row) if profile in ("hypergrowth", "speculative") else None
-    
+
     # Pondérations
     if profile == "value":
         weights = {"pe": 0.40, "graham": 0.30, "dcf": 0.30}
@@ -305,7 +304,7 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
         weights = {"pe": 0.10, "graham": 0.10, "dcf": 0.40, "sales": 0.40}
     else:
         weights = {"pe": 0.35, "graham": 0.25, "dcf": 0.40}
-    
+
     candidates = []
     weights_list = []
     if fv_pe is not None:
@@ -316,14 +315,14 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
         candidates.append(fv_dcf); weights_list.append(weights.get("dcf", 0))
     if fv_sales is not None:
         candidates.append(fv_sales); weights_list.append(weights.get("sales", 0))
-    
+
     if not candidates:
         return None
-    
+
     total_w = sum(weights_list)
     norm_weights = [w / total_w for w in weights_list]
     fv_composite = sum(v * w for v, w in zip(candidates, norm_weights))
-    
+
     # Primes
     q_score = quality_score(row)
     q_premium = quality_premium(q_score)
@@ -331,14 +330,15 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
     n_premium = narrative_premium(m_score, profile)
     regime_factor = market_regime_adjustment(row)
     fv_composite = fv_composite * q_premium * n_premium * regime_factor
-    
-    # Garde-fou : écart trop grand -> moyenne pivots
+
+    # Garde-fou pivot en cas d'écart excessif
     pivot_avg = compute_pivot_average(row)
     if pivot_avg is not None and price > 0:
         ratio = fv_composite / price
         if ratio > 3.0 or ratio < 0.33:
             fv_composite = pivot_avg
-    
+
+    # Bornage final
     if price > 0:
         fv_composite = max(price * 0.1, min(price * 4.0, fv_composite))
     return round(fv_composite, 2)
@@ -346,8 +346,7 @@ def compute_fair_value_action(row: Dict[str, Any]) -> Optional[float]:
 # ---------------------------------------------------------------------------
 # MULTI-ASSETS
 # ---------------------------------------------------------------------------
-def compute_fair_value_crypto(row): 
-    # À remplacer par votre code existant
+def compute_fair_value_crypto(row: Dict[str, Any]) -> Optional[float]:
     nvt = row.get("nvt")
     price = row.get("price", 0)
     if not price:
@@ -366,7 +365,7 @@ def compute_fair_value_crypto(row):
         else: return None
     return round(price * mult, 2)
 
-def compute_fair_value_forex(row):
+def compute_fair_value_forex(row: Dict[str, Any]) -> Optional[float]:
     price = row.get("price", 0)
     mom_1m = row.get("momentum_1m", 0)
     mom_3m = row.get("momentum_3m", 0)
@@ -378,7 +377,7 @@ def compute_fair_value_forex(row):
         return round(price * 0.96, 5)
     return None
 
-def compute_fair_value_commodity(row):
+def compute_fair_value_commodity(row: Dict[str, Any]) -> Optional[float]:
     price = row.get("price", 0)
     drawdown = row.get("drawdown", 0)
     rsi = row.get("rsi", 50)
@@ -393,7 +392,7 @@ def compute_fair_value_commodity(row):
         return round(price * 0.88, 2)
     return None
 
-def compute_fair_value_etf(row):
+def compute_fair_value_etf(row: Dict[str, Any]) -> Optional[float]:
     return None
 
 def compute_fair_value(row: Dict[str, Any]) -> Optional[float]:

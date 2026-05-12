@@ -43,9 +43,10 @@ if "dark_mode" not in st.session_state:
 # Sidebar pour les filtres et mode dark
 with st.sidebar:
     st.title("⚙️ Paramètres")
-    dark_mode_toggle = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
-    if dark_mode_toggle != st.session_state.dark_mode:
-        st.session_state.dark_mode = dark_mode_toggle
+    # Toggle mode dark
+    new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
+    if new_dark_mode != st.session_state.dark_mode:
+        st.session_state.dark_mode = new_dark_mode
         st.rerun()
     st.markdown("---")
     st.subheader("Filtres")
@@ -56,108 +57,114 @@ with st.sidebar:
 if st.session_state.dark_mode:
     st.markdown("""
     <style>
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, sans-serif;
-    }
-    [data-testid="stAppViewContainer"] {
-        background: #0A0E1A;
-    }
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-    header { visibility: hidden; }
-    [data-testid="metric-container"] {
-        background: #111827;
-        border: 1px solid #1F2937;
-        border-radius: 12px;
-        padding: 16px 20px;
-    }
-    [data-testid="metric-container"] label {
-        color: #6B7280 !important;
-        font-size: 12px !important;
-    }
-    [data-testid="metric-container"] [data-testid="stMetricValue"] {
-        color: #F9FAFB !important;
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
-    }
-    [data-testid="stDataFrame"] {
-        border: 1px solid #1F2937;
-        border-radius: 10px;
-        overflow: hidden;
-    }
-    .stButton > button {
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.2s;
-    }
-    .stTextInput > div > div > input,
-    .stSelectbox > div > div > div {
-        background: #111827 !important;
-        border: 1px solid #1F2937 !important;
-        color: #F9FAFB !important;
-        border-radius: 8px !important;
-    }
-    .badge-green  { background:#064E3B; color:#6EE7B7; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-    .badge-blue   { background:#1E3A5F; color:#93C5FD; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-    .badge-gray   { background:#1F2937; color:#9CA3AF; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-    .badge-orange { background:#431407; color:#FDBA74; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-    .badge-red    { background:#450A0A; color:#FCA5A5; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-    .ph-divider {
-        border: none;
-        border-top: 1px solid #1F2937;
-        margin: 24px 0;
-    }
-    .cta-section {
-        background: linear-gradient(135deg, #064E3B 0%, #1E3A5F 100%);
-        border-radius: 16px;
-        padding: 32px;
-        text-align: center;
-        margin-top: 32px;
-    }
+        /* Dark theme overrides */
+        html, body, [class*="css"] {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: #0A0E1A;
+            color: #F9FAFB;
+        }
+        [data-testid="stAppViewContainer"] {
+            background: #0A0E1A;
+        }
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
+        header { visibility: hidden; }
+        [data-testid="metric-container"] {
+            background: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+        [data-testid="metric-container"] label {
+            color: #6B7280 !important;
+            font-size: 12px !important;
+        }
+        [data-testid="metric-container"] [data-testid="stMetricValue"] {
+            color: #F9FAFB !important;
+            font-size: 1.6rem !important;
+            font-weight: 700 !important;
+        }
+        [data-testid="stDataFrame"] {
+            border: 1px solid #1F2937;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .stButton > button {
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .stTextInput > div > div > input,
+        .stSelectbox > div > div > div {
+            background: #111827 !important;
+            border: 1px solid #1F2937 !important;
+            color: #F9FAFB !important;
+            border-radius: 8px !important;
+        }
+        .badge-green  { background:#064E3B; color:#6EE7B7; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+        .badge-blue   { background:#1E3A5F; color:#93C5FD; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+        .badge-gray   { background:#1F2937; color:#9CA3AF; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+        .badge-orange { background:#431407; color:#FDBA74; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+        .badge-red    { background:#450A0A; color:#FCA5A5; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+        .ph-divider {
+            border: none;
+            border-top: 1px solid #1F2937;
+            margin: 24px 0;
+        }
+        .cta-section {
+            background: linear-gradient(135deg, #064E3B 0%, #1E3A5F 100%);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            margin-top: 32px;
+        }
     </style>
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
     <style>
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, sans-serif;
-    }
-    [data-testid="stAppViewContainer"] {
-        background: #FFFFFF;
-    }
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-    header { visibility: hidden; }
-    [data-testid="metric-container"] {
-        background: #F3F4F6;
-        border: 1px solid #D1D5DB;
-        border-radius: 12px;
-        padding: 16px 20px;
-    }
-    [data-testid="metric-container"] label {
-        color: #4B5563 !important;
-        font-size: 12px !important;
-    }
-    [data-testid="metric-container"] [data-testid="stMetricValue"] {
-        color: #111827 !important;
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
-    }
-    .stButton > button {
-        border-radius: 8px;
-        font-weight: 600;
-    }
-    .ph-divider {
-        border: none;
-        border-top: 1px solid #E5E7EB;
-        margin: 24px 0;
-    }
+        /* Light theme overrides */
+        html, body, [class*="css"] {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: #FFFFFF;
+            color: #111827;
+        }
+        [data-testid="stAppViewContainer"] {
+            background: #FFFFFF;
+        }
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
+        header { visibility: hidden; }
+        [data-testid="metric-container"] {
+            background: #F3F4F6;
+            border: 1px solid #D1D5DB;
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+        [data-testid="metric-container"] label {
+            color: #4B5563 !important;
+            font-size: 12px !important;
+        }
+        [data-testid="metric-container"] [data-testid="stMetricValue"] {
+            color: #111827 !important;
+            font-size: 1.6rem !important;
+            font-weight: 700 !important;
+        }
+        .stButton > button {
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .ph-divider {
+            border: none;
+            border-top: 1px solid #E5E7EB;
+            margin: 24px 0;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -198,9 +205,12 @@ st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 # CHARGEMENT INITIAL (liste restreinte)
 # ---------------------------------------------------------------------------
-with st.spinner("⏳ Chargement des données marché..."):
-    default_tickers = get_default_tickers()
-    df_raw = fetch_batch(default_tickers, delay=0.2)
+@st.cache_data(ttl=900, show_spinner=False)
+def load_data(tickers_tuple):
+    return fetch_batch(list(tickers_tuple), delay=0.2)
+
+default_tickers = get_default_tickers()
+df_raw = load_data(tuple(default_tickers))
 
 if df_raw.empty:
     st.error("⚠️ Impossible de charger les données. Vérifiez votre connexion.")
@@ -325,12 +335,17 @@ else:
     }
     available = [c for c in display_cols.keys() if c in df.columns]
     df_display = df[available].rename(columns=display_cols)
-    # Formatage
-    for col in ["Prix", "Fair Value"]:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(
-                lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
-            )
+    # Remplacer les NaN par "—" pour toutes les colonnes
+    df_display = df_display.fillna("—")
+    # Formatage des nombres
+    if "Prix" in df_display.columns:
+        df_display["Prix"] = df_display["Prix"].apply(
+            lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
+        )
+    if "Fair Value" in df_display.columns:
+        df_display["Fair Value"] = df_display["Fair Value"].apply(
+            lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
+        )
     if "Upside %" in df_display.columns:
         df_display["Upside %"] = df_display["Upside %"].apply(
             lambda x: f"{x:+.1f}%" if isinstance(x, (int, float)) and x != 0 else "—"
