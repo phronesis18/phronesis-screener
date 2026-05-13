@@ -241,7 +241,7 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
     sug_cols = st.columns(2)
     for i, sug in enumerate(suggestions[:4]):
         with sug_cols[i % 2]:
-            if st.button(sug, key=f"sug_{i}", use_container_width=True,
+            if st.button(sug, key=f"sug_{i}", width="stretch",
                          disabled=(remaining <= 0)):
                 st.session_state["ai_prefill"] = sug
 
@@ -264,7 +264,7 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
         send_clicked = st.button(
             "Analyser avec l'IA →",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=(remaining <= 0 or not question.strip()),
         )
 
@@ -311,10 +311,11 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
                 st.markdown(entry["a"])
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        # Bouton effacer historique
+        # Bouton effacer historique - sans st.rerun(), on vide simplement la session
         if st.button("Effacer l'historique", key="clear_ai_history"):
             st.session_state["ai_history"] = []
-            st.rerun()
+            # Pas de st.rerun() - l'interface se met à jour automatiquement
+            st.toast("Historique effacé", icon="🗑️")
 
 
 # ---------------------------------------------------------------------------

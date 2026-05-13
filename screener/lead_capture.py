@@ -215,8 +215,8 @@ def show_lead_form():
                             "objectif":  objectif,
                         })
                     mark_lead_captured()
-                    st.success("Bienvenue ! Chargement du screener...")
-                    # Plus de st.rerun() → le rechargement se fait automatiquement
+                    # Utilisation d'un toast non-bloquant (pas de st.success)
+                    st.toast("✅ Bienvenue ! Chargement du screener...", icon="🏛")
 
         # Footer
         st.markdown("""

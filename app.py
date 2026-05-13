@@ -47,11 +47,9 @@ with st.sidebar:
     new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
     if new_dark_mode != st.session_state.dark_mode:
         st.session_state.dark_mode = new_dark_mode
-        st.rerun()
+        # Pas de st.rerun() - le changement d'état provoque automatiquement un re-rendu
     st.markdown("---")
     st.subheader("Filtres")
-    # Les filtres seront définis plus bas après chargement des données,
-    # mais on les place ici pour l'organisation.
 
 # Appliquer le thème CSS selon le mode
 if st.session_state.dark_mode:
@@ -188,7 +186,7 @@ with h_col1:
     """, unsafe_allow_html=True)
 with h_col2:
     ticker_search = st.text_input(
-        "",
+        "Rechercher un ticker",
         placeholder="🔍  Rechercher un ticker (AAPL, BTC-USD, EURUSD=X...)",
         label_visibility="collapsed",
         key="search_input"
@@ -229,8 +227,8 @@ if ticker_search and ticker_search.strip():
                     extra_data["asset_type"] = ASSET_TYPES.get(extra_ticker, "Action")
                 extra_df = pd.DataFrame([extra_data])
                 df_raw = pd.concat([df_raw, extra_df], ignore_index=True)
-                st.success(f"✅ {extra_ticker} ajouté au screener")
-                st.rerun()
+                st.toast(f"✅ {extra_ticker} ajouté au screener", icon="🏛")
+                # Pas de st.rerun() - l'affichage se met à jour automatiquement
             else:
                 st.warning(f"⚠️ Ticker {extra_ticker} non trouvé ou données indisponibles")
 
@@ -335,9 +333,7 @@ else:
     }
     available = [c for c in display_cols.keys() if c in df.columns]
     df_display = df[available].rename(columns=display_cols)
-    # Remplacer les NaN par "—" pour toutes les colonnes
     df_display = df_display.fillna("—")
-    # Formatage des nombres
     if "Prix" in df_display.columns:
         df_display["Prix"] = df_display["Prix"].apply(
             lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
@@ -356,7 +352,7 @@ else:
         )
     st.dataframe(
         df_display,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=400,
         column_config={
@@ -372,7 +368,7 @@ else:
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# FICHE DÉTAIL ACTIF (avec session_state.selected_ticker et assistant IA)
+# FICHE DÉTAIL ACTIF
 # ---------------------------------------------------------------------------
 st.subheader("Analyse détaillée d'un actif")
 ticker_detail = st.selectbox(
@@ -382,7 +378,6 @@ ticker_detail = st.selectbox(
     key="detail_select"
 )
 
-# Mettre à jour la session_state pour l'assistant IA
 st.session_state.selected_ticker = ticker_detail
 
 if ticker_detail:
@@ -439,7 +434,7 @@ if ticker_detail:
             closes = r.get("hist_closes", [])
             if dates and closes:
                 fig = price_chart(dates, closes, ticker_detail, r.get("fair_value"))
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
         with g_col2:
             fig_radar = score_radar(
                 r.get("score_value", 0),
@@ -447,7 +442,7 @@ if ticker_detail:
                 r.get("score_momentum", 0),
                 r.get("score_risk", 0),
             )
-            st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig_radar, width="stretch", config={"displayModeBar": False})
 
         st.markdown("**Ratios fondamentaux**")
         ratio_cols = st.columns(6)
@@ -475,9 +470,8 @@ if ticker_detail:
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# ASSISTANT IA (avec contexte de l'actif sélectionné)
+# ASSISTANT IA
 # ---------------------------------------------------------------------------
-# Récupérer les données de l'actif sélectionné (si existant)
 selected_ticker = st.session_state.get("selected_ticker", None)
 df_row = None
 if selected_ticker and "df_scored" in st.session_state:
@@ -493,10 +487,10 @@ show_ai_assistant(df_row=df_row, ticker=selected_ticker)
 g2_col1, g2_col2 = st.columns([1, 1])
 with g2_col1:
     fig_dist = score_distribution(df_scored)
-    st.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig_dist, width="stretch", config={"displayModeBar": False})
 with g2_col2:
     fig_top = top_opportunities_bar(df_scored)
-    st.plotly_chart(fig_top, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig_top, width="stretch", config={"displayModeBar": False})
 
 # ---------------------------------------------------------------------------
 # CTA — REJOINDRE LE CLUB
@@ -518,10 +512,10 @@ with cta_col2:
     """, unsafe_allow_html=True)
     cta_a, cta_b = st.columns(2)
     with cta_a:
-        if st.button("💬 Rejoindre via WhatsApp", type="primary", use_container_width=True):
+        if st.button("💬 Rejoindre via WhatsApp", type="primary", width="stretch"):
             st.markdown(f"[Cliquer ici pour ouvrir WhatsApp]({WHATSAPP_URL})")
     with cta_b:
-        if st.button("📅 Réserver un appel découverte", use_container_width=True):
+        if st.button("📅 Réserver un appel découverte", width="stretch"):
             st.markdown("[Réserver sur cal.com/phronesis](https://cal.com)")
     st.markdown("""
     <div style="text-align:center;font-size:12px;color:#374151;margin-top:16px">
