@@ -14,7 +14,6 @@ import datetime
 SHEET_ID = "VOTRE_GOOGLE_SHEET_ID"   # ← Remplacer par l'ID de ta Google Sheet
 SHEET_NAME = "Leads"                  # Nom de l'onglet
 
-
 # ---------------------------------------------------------------------------
 # SESSION STATE
 # ---------------------------------------------------------------------------
@@ -23,20 +22,14 @@ def is_lead_captured() -> bool:
     """Vérifie si le lead a déjà rempli le formulaire dans cette session."""
     return st.session_state.get("lead_captured", False)
 
-
 def mark_lead_captured():
     st.session_state["lead_captured"] = True
-
 
 # ---------------------------------------------------------------------------
 # SAUVEGARDE GOOGLE SHEETS
 # ---------------------------------------------------------------------------
 
 def save_lead_to_sheets(data: dict) -> bool:
-    """
-    Sauvegarde un lead dans Google Sheets via gspread.
-    Nécessite le secret GOOGLE_CREDS dans Streamlit Cloud.
-    """
     try:
         import gspread
         import json
@@ -47,16 +40,14 @@ def save_lead_to_sheets(data: dict) -> bool:
             "https://www.googleapis.com/auth/drive",
         ]
 
-        # Lecture des credentials depuis Streamlit secrets
         creds_raw = st.secrets.get("GOOGLE_CREDS", None)
         if not creds_raw:
-            # Mode démo : pas de credentials → juste marquer le lead
             return True
 
         creds_dict = json.loads(creds_raw) if isinstance(creds_raw, str) else dict(creds_raw)
-        creds  = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
-        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
         row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -69,23 +60,15 @@ def save_lead_to_sheets(data: dict) -> bool:
         ]
         sheet.append_row(row)
         return True
-
-    except Exception as e:
-        # En cas d'erreur Sheets, on laisse quand même passer l'utilisateur
-        st.warning(f"⚠️ Sauvegarde lead partielle : {e}", icon="⚠️")
-        return True  # Ne pas bloquer l'accès pour autant
-
+    except Exception:
+        return True  # Ne pas bloquer
 
 # ---------------------------------------------------------------------------
 # FORMULAIRE
 # ---------------------------------------------------------------------------
 
 def show_lead_form():
-    """
-    Affiche le formulaire de capture avant accès au screener.
-    Layout : centré, premium, mobile-first.
-    """
-    # CSS gate page
+    # CSS (inchangé)
     st.markdown("""
     <style>
     .gate-hero {
@@ -154,16 +137,12 @@ def show_lead_form():
     </div>
     """, unsafe_allow_html=True)
 
-    # Formulaire centré
     col_l, col_form, col_r = st.columns([1, 2, 1])
     with col_form:
         with st.form("lead_form", clear_on_submit=False):
             prenom = st.text_input("Prénom *", placeholder="Ex : Jean-Baptiste")
-            email  = st.text_input("Email *", placeholder="nom@exemple.com")
-            whatsapp = st.text_input(
-                "WhatsApp (avec indicatif) *",
-                placeholder="+229 97 00 00 00"
-            )
+            email = st.text_input("Email *", placeholder="nom@exemple.com")
+            whatsapp = st.text_input("WhatsApp (avec indicatif) *", placeholder="+229 97 00 00 00")
             pays = st.selectbox("Pays de résidence", [
                 "Bénin", "Côte d'Ivoire", "Sénégal", "Togo", "Cameroun",
                 "Mali", "Burkina Faso", "Guinée", "Niger", "RDC",
@@ -188,11 +167,10 @@ def show_lead_form():
             submitted = st.form_submit_button(
                 "Accéder au Screener Gratuit →",
                 type="primary",
-                use_container_width=True
+                width="stretch"
             )
 
             if submitted:
-                # Validation
                 errors = []
                 if not prenom.strip():
                     errors.append("Le prénom est obligatoire.")
@@ -207,16 +185,16 @@ def show_lead_form():
                 else:
                     with st.spinner("Enregistrement en cours..."):
                         save_lead_to_sheets({
-                            "prenom":    prenom.strip(),
-                            "email":     email.strip().lower(),
-                            "whatsapp":  whatsapp.strip(),
-                            "pays":      pays,
-                            "profil":    profil,
-                            "objectif":  objectif,
+                            "prenom": prenom.strip(),
+                            "email": email.strip().lower(),
+                            "whatsapp": whatsapp.strip(),
+                            "pays": pays,
+                            "profil": profil,
+                            "objectif": objectif,
                         })
                     mark_lead_captured()
-                    # Utilisation d'un toast non-bloquant (pas de st.success)
-                    st.toast("✅ Bienvenue ! Chargement du screener...", icon="🏛")
+                    # AUCUNE NOTIFICATION (ni success, ni toast)
+                    # Le rechargement naturel du formulaire affichera le screener
 
         # Footer
         st.markdown("""
