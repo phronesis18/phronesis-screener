@@ -11,7 +11,7 @@ import datetime
 # CONFIG
 # ---------------------------------------------------------------------------
 
-SHEET_ID = "1xURzM2-QhT6D2iYUEkFLoGFpxUyyuOr8IhXC4u-rl2E"   # ← Remplacer par l'ID de ta Google Sheet
+SHEET_ID = "VOTRE_GOOGLE_SHEET_ID"   # ← Remplacer par l'ID de ta Google Sheet
 SHEET_NAME = "Leads"                  # Nom de l'onglet
 
 
@@ -216,7 +216,7 @@ def show_lead_form():
                         })
                     mark_lead_captured()
                     st.success("Bienvenue ! Chargement du screener...")
-                    st.rerun()
+                    # Plus de st.rerun() → le rechargement se fait automatiquement
 
         # Footer
         st.markdown("""
