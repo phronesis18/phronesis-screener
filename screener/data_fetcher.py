@@ -1,19 +1,31 @@
 """
 screener/data_fetcher.py
-Phronesis Screener — couche data avec listes exhaustives d'actifs
-Ajout des séries High/Low pour calcul des pivots.
+Phronesis Screener — couche data 100% gratuite
+Sources : yfinance (actions/ETF/forex), CoinGecko (crypto)
+Ajout : chargement de données pré-calculées depuis fichier Parquet pour éviter rate-limit.
 """
 
 import yfinance as yf
 import pandas as pd
 import requests
 import time
+import os
 
 # ---------------------------------------------------------------------------
-# LISTES EXHAUSTIVES D'ACTIFS
+# CONSTANTES
 # ---------------------------------------------------------------------------
+
+COINGECKO_IDS = {
+    "BTC-USD": "bitcoin",
+    "ETH-USD": "ethereum",
+    "BNB-USD": "binancecoin",
+    "SOL-USD": "solana",
+    "ADA-USD": "cardano",
+    "XRP-USD": "ripple",
+}
+
 ASSET_TYPES = {
-    # === Actions US Large Cap ===
+    # Actions US
     "AAPL": "Action", "MSFT": "Action", "GOOGL": "Action", "AMZN": "Action",
     "META": "Action", "TSLA": "Action", "BRK-B": "Action", "JPM": "Action",
     "JNJ": "Action", "WMT": "Action", "V": "Action", "MA": "Action",
@@ -82,191 +94,135 @@ ASSET_TYPES = {
 }
 
 DISPLAY_NAMES = {
-    "EURUSD=X": "EUR/USD", "GBPUSD=X": "GBP/USD", "USDJPY=X": "USD/JPY",
-    "USDCHF=X": "USD/CHF", "AUDUSD=X": "AUD/USD", "GC=F": "Or",
-    "SI=F": "Argent", "CL=F": "Pétrole WTI", "NG=F": "Gaz naturel",
-    "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
+    "EURUSD=X": "EUR/USD", "GBPUSD=X": "GBP/USD",
+    "USDJPY=X": "USD/JPY", "USDCHF=X": "USD/CHF",
+    "AUDUSD=X": "AUD/USD",
+    "GC=F": "Or (Gold)", "SI=F": "Argent (Silver)",
+    "CL=F": "Pétrole (WTI)", "NG=F": "Gaz Naturel",
+    "EZA": "ETF Afrique Sud", "AFK": "ETF Afrique",
+    "NGE": "ETF Nigeria",
 }
 
-COINGECKO_IDS = {
-    "BTC-USD": "bitcoin", "ETH-USD": "ethereum", "BNB-USD": "binancecoin",
-    "SOL-USD": "solana", "ADA-USD": "cardano", "XRP-USD": "ripple",
-}
-
-def get_default_tickers():
+# ---------------------------------------------------------------------------
+# FONCTION POUR CHARGER LES DONNÉES PRÉ-CALCULÉES (via GitHub Actions)
+# ---------------------------------------------------------------------------
+def load_precomputed_data() -> pd.DataFrame:
     """
-    Liste élargie à environ 118 actifs couvrant toutes les classes.
+    Charge les données depuis data/latest.parquet (généré par GitHub Actions).
+    Si le fichier n'existe pas (développement local), utilise fetch_batch sur une liste réduite.
     """
-    return [
-        # Actions US Large Cap (60)
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "BRK-B", "JPM", "JNJ", "V",
-        "WMT", "PG", "UNH", "HD", "DIS", "NFLX", "ADBE", "CRM", "NVDA", "AMD",
-        "INTC", "CSCO", "IBM", "ORCL", "KO", "PEP", "COST", "CVX", "XOM", "BAC",
-        "WFC", "C", "GS", "MS", "AXP", "CAT", "GE", "BA", "MMM", "HON",
-        "UPS", "FDX", "NKE", "SBUX", "MCD", "CMCSA", "T", "VZ", "TMUS", "ABT",
-        "TMO", "MRK", "PFE", "ABBV", "LLY", "BMY", "GILD", "REGN", "VRTX", "SPGI",
-        "BLK", "SCHW", "ICE", "DE", "LMT", "NOC", "RTX", "GD", "LHX", "ADP",
-        "PAYX", "CTSH", "IT", "AON", "MMC", "ZTS", "EW", "ISRG", "SYK", "MDT",
-        "BSX", "ALGN", "IDXX", "CHTR", "ROP", "SHW", "PPG", "ECL", "APD", "LIN",
-        "DOW", "DD", "FCX", "NEM", "GDX", "PLTR", "SNOW", "DDOG", "NET", "UBER",
-        "LYFT", "ABNB", "RBLX", "COIN", "SQ", "PYPL", "SHOP", "SPOT", "ROKU", "TTD",
-        "ZS", "MRNA", "BIIB", "ILMN", "WBA",
-
-        # ETF (20)
-        "SPY", "QQQ", "IVV", "VOO", "VTI", "VT", "BND", "AGG", "TLT", "IEF",
-        "LQD", "HYG", "GLD", "IAU", "SLV", "USO", "EEM", "VWO", "EWZ", "FXI",
-        "EFA", "VGK", "EWJ", "INDA", "ARKK", "ARKW", "QCLN", "ICLN", "XLE", "XLF",
-        "XLK", "XLV", "XLI", "XLY", "XLP", "XLU", "IBB", "XBI", "SMH", "SOXX",
-        "VTWO", "IWM", "IJH", "IJR", "EZA", "AFK", "NGE", "FLZA", "DBZA", "GAF",
-
-        # Crypto (15)
-        "BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "ADA-USD", "XRP-USD", "DOGE-USD",
-        "DOT-USD", "AVAX-USD", "MATIC-USD", "LINK-USD", "LTC-USD", "BCH-USD", "UNI-USD",
-        "ATOM-USD",
-
-        # Forex (15)
-        "EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X", "USDCAD=X",
-        "NZDUSD=X", "EURGBP=X", "EURJPY=X", "GBPJPY=X", "AUDJPY=X", "CADJPY=X",
-        "CHFJPY=X", "EURCHF=X", "GBPCHF=X",
-
-        # Commodités (8)
-        "GC=F", "SI=F", "CL=F", "NG=F", "HO=F", "RB=F", "ZW=F", "ZC=F",
-    ]
+    filepath = "data/latest.parquet"
+    if os.path.exists(filepath):
+        df = pd.read_parquet(filepath)
+        return df
+    else:
+        # Fallback pour le développement local
+        from .data_fetcher import fetch_batch, get_default_tickers
+        return fetch_batch(get_default_tickers())
 
 # ---------------------------------------------------------------------------
-# HELPERS
+# FETCH SINGLE TICKER (yfinance) - conservé pour usage éventuel
 # ---------------------------------------------------------------------------
-def _safe(val):
-    if val is None:
-        return None
-    try:
-        f = float(val)
-        if f != f or abs(f) > 1e15:
-            return None
-        return round(f, 4)
-    except Exception:
-        return None
-
-def _calc_rsi(closes, period=14):
-    if len(closes) < period+1:
-        return 50.0
-    delta = closes.diff().dropna()
-    gain = delta.clip(lower=0).rolling(period).mean()
-    loss = (-delta.clip(upper=0)).rolling(period).mean()
-    rs = gain / loss.replace(0, 1e-9)
-    rsi = 100 - 100/(1+rs)
-    return float(rsi.iloc[-1]) if not rsi.empty else 50.0
-
-def _calc_momentum(closes, periods):
-    if len(closes) < periods+1:
-        return 0.0
-    try:
-        return float((closes.iloc[-1] / closes.iloc[-periods-1] - 1)*100)
-    except Exception:
-        return 0.0
-
-# ---------------------------------------------------------------------------
-# FETCH PRINCIPAL
-# ---------------------------------------------------------------------------
-def fetch_ticker(ticker: str):
+def fetch_ticker(ticker: str) -> dict | None:
+    """
+    Récupère toutes les données nécessaires pour un ticker via yfinance.
+    Retourne None si le ticker est invalide ou les données manquantes.
+    """
     try:
         t = yf.Ticker(ticker)
         info = t.info
-        price = (info.get("currentPrice") or info.get("regularMarketPrice") or
-                 info.get("ask") or info.get("bid") or 0)
+
+        # Prix courant (plusieurs fallbacks)
+        price = (
+            info.get("currentPrice")
+            or info.get("regularMarketPrice")
+            or info.get("ask")
+            or info.get("bid")
+            or 0
+        )
         if not price or price == 0:
             return None
+
+        # Historique 3 mois pour calculs techniques
         hist = t.history(period="3mo", interval="1d")
         if hist.empty or len(hist) < 5:
             return None
 
-        closes = hist["Close"]
-        highs = hist["High"]
-        lows = hist["Low"]
-
-        # --- EPS amélioré (correction Tesla) ---
-        eps_yahoo = info.get("trailingEps")
-        shares = info.get("sharesOutstanding")
-        net_income = info.get("netIncomeToCommon")
-        eps_calc = None
-        if net_income and shares and shares > 0 and net_income > 0:
-            eps_calc = net_income / shares
-        eps = None
-        if eps_yahoo and eps_yahoo > 0:
-            eps = eps_yahoo
-            # Si EPS suspect (prix/EPS > 80) et une meilleure valeur calculée existe, on remplace
-            if price > 0 and (price / eps_yahoo) > 80 and eps_calc and eps_calc > eps_yahoo * 1.5:
-                eps = eps_calc
-        elif eps_calc and eps_calc > 0:
-            eps = eps_calc
-
-        # Autres fondamentaux
-        pe = info.get("trailingPE")
-        if pe is None and eps and price and price > 0:
-            pe = price / eps
-        pb = info.get("priceToBook")
-        roe = info.get("returnOnEquity")
-        debt_eq = info.get("debtToEquity")
-        fcf = info.get("freeCashflow")
-        bvps = info.get("bookValue")
-        ev_ebitda = info.get("enterpriseToEbitda")
+        # --- Fondamentaux ---
+        pe         = info.get("trailingPE")
+        pb         = info.get("priceToBook")
+        roe        = info.get("returnOnEquity")
+        debt_eq    = info.get("debtToEquity")
+        fcf        = info.get("freeCashflow")
+        eps        = info.get("trailingEps")
+        bvps       = info.get("bookValue")
+        ev_ebitda  = info.get("enterpriseToEbitda")
+        revenue    = info.get("totalRevenue")
         market_cap = info.get("marketCap")
-        sector = info.get("sector", "—")
+        sector     = info.get("sector", "—")
         short_name = info.get("shortName", ticker)
-        currency = info.get("currency", "USD")
-        revenue = info.get("totalRevenue")
-        operating_margin = info.get("operatingMargins")
-        gross_margin = info.get("grossMargins")
-        revenue_growth = info.get("revenueGrowth")
-        beta = info.get("beta")
+        currency   = info.get("currency", "USD")
 
-        # Techniques
+        # --- Indicateurs techniques ---
+        closes = hist["Close"]
+        volumes = hist["Volume"] if "Volume" in hist.columns else pd.Series([0])
+
+        # RSI 14 jours
         rsi = _calc_rsi(closes, 14)
-        mom_1m = _calc_momentum(closes, 22)
-        mom_3m = _calc_momentum(closes, len(closes)-1)
-        volatility = float(closes.pct_change().dropna().std() * (252**0.5)*100)
-        rolling_max = closes.cummax()
-        drawdown = float(((closes - rolling_max) / rolling_max).min()*100)
 
-        shares_outstanding = shares or (market_cap/price if market_cap and price else None)
+        # Momentum
+        mom_1m = _calc_momentum(closes, 22)
+        mom_3m = _calc_momentum(closes, len(closes) - 1)
+
+        # Volatilité annualisée
+        volatility = float(closes.pct_change().dropna().std() * (252 ** 0.5) * 100)
+
+        # Drawdown max 3 mois
+        rolling_max = closes.cummax()
+        drawdown = float(((closes - rolling_max) / rolling_max).min() * 100)
+
+        # Volume moyen 20j
+        vol_avg_20 = float(volumes.tail(20).mean()) if len(volumes) >= 20 else 0
 
         return {
-            "ticker": ticker,
-            "name": DISPLAY_NAMES.get(ticker, short_name),
-            "asset_type": ASSET_TYPES.get(ticker, "Action"),
-            "sector": sector,
-            "currency": currency,
-            "price": round(float(price), 4),
-            "market_cap": market_cap,
-            "pe": _safe(pe),
-            "pb": _safe(pb),
-            "roe": _safe(roe),
-            "debt_eq": _safe(debt_eq),
-            "fcf": fcf,
-            "eps": _safe(eps),
-            "bvps": _safe(bvps),
-            "ev_ebitda": _safe(ev_ebitda),
-            "revenue": revenue,
-            "revenue_growth": _safe(revenue_growth) if revenue_growth else None,
-            "operating_margin": _safe(operating_margin) if operating_margin else None,
-            "gross_margin": _safe(gross_margin) if gross_margin else None,
-            "beta": _safe(beta) if beta else None,
-            "shares_outstanding": shares_outstanding,
-            "rsi": round(rsi, 1),
+            "ticker":      ticker,
+            "name":        DISPLAY_NAMES.get(ticker, short_name),
+            "asset_type":  ASSET_TYPES.get(ticker, "Action"),
+            "sector":      sector,
+            "currency":    currency,
+            "price":       round(float(price), 4),
+            "market_cap":  market_cap,
+            # Fondamentaux
+            "pe":          _safe(pe),
+            "pb":          _safe(pb),
+            "roe":         _safe(roe),
+            "debt_eq":     _safe(debt_eq),
+            "fcf":         fcf,
+            "eps":         _safe(eps),
+            "bvps":        _safe(bvps),
+            "ev_ebitda":   _safe(ev_ebitda),
+            "revenue":     revenue,
+            # Techniques
+            "rsi":         round(rsi, 1),
             "momentum_1m": round(mom_1m, 2),
             "momentum_3m": round(mom_3m, 2),
-            "volatility": round(volatility, 1),
-            "drawdown": round(drawdown, 1),
+            "volatility":  round(volatility, 1),
+            "drawdown":    round(drawdown, 1),
+            "vol_avg_20":  round(vol_avg_20, 0),
+            # Historique pour graphiques
             "hist_closes": closes.tail(60).tolist(),
-            "hist_highs": highs.tail(60).tolist(),
-            "hist_lows": lows.tail(60).tolist(),
-            "hist_dates": [str(d.date()) for d in closes.tail(60).index],
+            "hist_dates":  [str(d.date()) for d in closes.tail(60).index],
         }
-    except Exception as e:
-        print(f"Erreur fetch {ticker}: {e}")
+    except Exception:
         return None
 
-def fetch_batch(tickers, delay=0.3):
+# ---------------------------------------------------------------------------
+# FETCH BATCH (avec délai) - conservé pour fallback local
+# ---------------------------------------------------------------------------
+def fetch_batch(tickers: list, delay: float = 0.5) -> pd.DataFrame:
+    """
+    Fetche une liste de tickers avec délai pour éviter le rate-limit yfinance.
+    """
     rows = []
     for tk in tickers:
         data = fetch_ticker(tk)
@@ -275,7 +231,14 @@ def fetch_batch(tickers, delay=0.3):
         time.sleep(delay)
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
-def fetch_crypto_metrics(ticker):
+# ---------------------------------------------------------------------------
+# CRYPTO via CoinGecko (données supplémentaires NVT proxy)
+# ---------------------------------------------------------------------------
+def fetch_crypto_metrics(ticker: str) -> dict:
+    """
+    Récupère market_cap, volume 24h via CoinGecko pour proxy NVT.
+    NVT = Market Cap / Volume 24h (simplifié)
+    """
     cg_id = COINGECKO_IDS.get(ticker)
     if not cg_id:
         return {}
@@ -286,9 +249,58 @@ def fetch_crypto_metrics(ticker):
             return {}
         data = resp.json()
         mkt = data.get("market_data", {})
-        mc = mkt.get("market_cap", {}).get("usd", 0)
+        mc  = mkt.get("market_cap", {}).get("usd", 0)
         vol = mkt.get("total_volume", {}).get("usd", 1)
         nvt = round(mc / vol, 2) if vol > 0 else None
-        return {"nvt": nvt}
+        return {
+            "nvt":             nvt,
+            "circulating_supply": mkt.get("circulating_supply"),
+            "ath":             mkt.get("ath", {}).get("usd"),
+            "ath_change_pct":  mkt.get("ath_change_percentage", {}).get("usd"),
+        }
     except Exception:
         return {}
+
+# ---------------------------------------------------------------------------
+# HELPERS
+# ---------------------------------------------------------------------------
+def get_default_tickers():
+    """Liste de tickers par défaut (utilisée en fallback)."""
+    return [
+        "AAPL", "MSFT", "GOOGL", "AMZN", "META",
+        "JPM", "JNJ", "V", "NVDA", "TSLA",
+        "SPY", "QQQ", "GLD",
+        "BTC-USD", "ETH-USD",
+        "EURUSD=X", "GBPUSD=X",
+        "GC=F",
+    ]
+
+def _calc_rsi(closes: pd.Series, period: int = 14) -> float:
+    if len(closes) < period + 1:
+        return 50.0
+    delta = closes.diff().dropna()
+    gain  = delta.clip(lower=0).rolling(period).mean()
+    loss  = (-delta.clip(upper=0)).rolling(period).mean()
+    rs    = gain / loss.replace(0, 1e-9)
+    rsi   = 100 - 100 / (1 + rs)
+    return float(rsi.iloc[-1]) if not rsi.empty else 50.0
+
+def _calc_momentum(closes: pd.Series, periods: int) -> float:
+    if len(closes) < periods + 1:
+        return 0.0
+    try:
+        return float((closes.iloc[-1] / closes.iloc[-periods - 1] - 1) * 100)
+    except Exception:
+        return 0.0
+
+def _safe(val) -> float | None:
+    """Retourne None si la valeur est invalide (inf, nan, None)."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if f != f or abs(f) > 1e15:  # NaN ou inf
+            return None
+        return round(f, 4)
+    except Exception:
+        return None

@@ -2,6 +2,7 @@
 app.py
 Phronesis Screener — Application principale Streamlit
 Avec mode dark (toggle sidebar) + assistant IA contextuel + recherche dynamique.
+Chargement des données depuis fichier pré-calculé (GitHub Actions) pour éviter rate-limit.
 """
 
 import streamlit as st
@@ -9,8 +10,8 @@ import pandas as pd
 import time
 
 from screener.data_fetcher import (
-    fetch_batch, fetch_ticker, fetch_crypto_metrics,
-    ASSET_TYPES, DISPLAY_NAMES, get_default_tickers
+    fetch_ticker, ASSET_TYPES, DISPLAY_NAMES,
+    load_precomputed_data   # nouvelle fonction
 )
 from screener.scoring import compute_phronesis_score, get_signal_emoji
 from screener.lead_capture import is_lead_captured, show_lead_form
@@ -35,19 +36,16 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# GESTION DU MODE DARK (SESSION STATE + TOGGLE SIDEBAR)
+# GESTION DU MODE DARK
 # ---------------------------------------------------------------------------
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
 
-# Sidebar pour les filtres et mode dark
 with st.sidebar:
     st.title("⚙️ Paramètres")
-    # Toggle mode dark
     new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
     if new_dark_mode != st.session_state.dark_mode:
         st.session_state.dark_mode = new_dark_mode
-        # Pas de st.rerun() - le changement d'état provoque automatiquement un re-rendu
     st.markdown("---")
     st.subheader("Filtres")
 
@@ -55,18 +53,13 @@ with st.sidebar:
 if st.session_state.dark_mode:
     st.markdown("""
     <style>
-        /* Dark theme overrides */
         html, body, [class*="css"] {
             font-family: 'Inter', -apple-system, sans-serif;
             background-color: #0A0E1A;
             color: #F9FAFB;
         }
-        [data-testid="stAppViewContainer"] {
-            background: #0A0E1A;
-        }
-        [data-testid="stHeader"] {
-            background: transparent;
-        }
+        [data-testid="stAppViewContainer"] { background: #0A0E1A; }
+        [data-testid="stHeader"] { background: transparent; }
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
         header { visibility: hidden; }
@@ -124,18 +117,13 @@ if st.session_state.dark_mode:
 else:
     st.markdown("""
     <style>
-        /* Light theme overrides */
         html, body, [class*="css"] {
             font-family: 'Inter', -apple-system, sans-serif;
             background-color: #FFFFFF;
             color: #111827;
         }
-        [data-testid="stAppViewContainer"] {
-            background: #FFFFFF;
-        }
-        [data-testid="stHeader"] {
-            background: transparent;
-        }
+        [data-testid="stAppViewContainer"] { background: #FFFFFF; }
+        [data-testid="stHeader"] { background: transparent; }
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
         header { visibility: hidden; }
@@ -194,24 +182,23 @@ with h_col2:
 with h_col3:
     st.markdown("""
     <div style="text-align:right;padding-top:12px;font-size:12px;color:#4B5563">
-        Données yfinance · Mise à jour toutes les 15 min
+        Données mises à jour toutes les heures · Fichier pré-calculé
     </div>
     """, unsafe_allow_html=True)
 
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# CHARGEMENT INITIAL (liste restreinte)
+# CHARGEMENT DES DONNÉES PRÉ-CALCULÉES (depuis data/latest.parquet)
 # ---------------------------------------------------------------------------
-@st.cache_data(ttl=900, show_spinner=False)
-def load_data(tickers_tuple):
-    return fetch_batch(list(tickers_tuple), delay=0.2)
+@st.cache_data(ttl=3600, show_spinner=False)   # cache 1 heure
+def load_screener_data():
+    return load_precomputed_data()
 
-default_tickers = get_default_tickers()
-df_raw = load_data(tuple(default_tickers))
+df_raw = load_screener_data()
 
 if df_raw.empty:
-    st.error("⚠️ Impossible de charger les données. Vérifiez votre connexion.")
+    st.error("⚠️ Impossible de charger les données. Vérifiez que le fichier data/latest.parquet existe ou que le fallback fonctionne.")
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -228,7 +215,6 @@ if ticker_search and ticker_search.strip():
                 extra_df = pd.DataFrame([extra_data])
                 df_raw = pd.concat([df_raw, extra_df], ignore_index=True)
                 st.toast(f"✅ {extra_ticker} ajouté au screener", icon="🏛")
-                # Pas de st.rerun() - l'affichage se met à jour automatiquement
             else:
                 st.warning(f"⚠️ Ticker {extra_ticker} non trouvé ou données indisponibles")
 
@@ -237,11 +223,10 @@ if ticker_search and ticker_search.strip():
 # ---------------------------------------------------------------------------
 df_scored = compute_phronesis_score(df_raw)
 
-# Stocker df_scored dans session_state pour l'assistant IA
 st.session_state.df_scored = df_scored
 
 # ---------------------------------------------------------------------------
-# FILTRES (placés dans la sidebar)
+# FILTRES (dans la sidebar)
 # ---------------------------------------------------------------------------
 with st.sidebar:
     ASSET_TYPE_FILTER = {
@@ -265,7 +250,6 @@ with st.sidebar:
     )
     score_min = st.slider("Score minimum", 0, 100, 0, step=5)
 
-# Appliquer les filtres sur df_scored
 df = df_scored.copy()
 asset_val = ASSET_TYPE_FILTER.get(asset_filter)
 if asset_val:
@@ -475,8 +459,8 @@ st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 selected_ticker = st.session_state.get("selected_ticker", None)
 df_row = None
 if selected_ticker and "df_scored" in st.session_state:
-    df = st.session_state.df_scored
-    row = df[df["ticker"] == selected_ticker]
+    df_temp = st.session_state.df_scored
+    row = df_temp[df_temp["ticker"] == selected_ticker]
     if not row.empty:
         df_row = row.iloc[0].to_dict()
 show_ai_assistant(df_row=df_row, ticker=selected_ticker)
