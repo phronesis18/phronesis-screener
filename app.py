@@ -11,7 +11,7 @@ import time
 
 from screener.data_fetcher import (
     fetch_ticker, ASSET_TYPES, DISPLAY_NAMES,
-    load_precomputed_data   # nouvelle fonction
+    load_precomputed_data
 )
 from screener.scoring import compute_phronesis_score, get_signal_emoji
 from screener.lead_capture import is_lead_captured, show_lead_form
@@ -46,6 +46,7 @@ with st.sidebar:
     new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
     if new_dark_mode != st.session_state.dark_mode:
         st.session_state.dark_mode = new_dark_mode
+        st.rerun()  # Force le rechargement du CSS
     st.markdown("---")
     st.subheader("Filtres")
 
@@ -416,7 +417,8 @@ if ticker_detail:
         with g_col1:
             dates  = r.get("hist_dates", [])
             closes = r.get("hist_closes", [])
-            if dates and closes:
+            # Correction de la condition
+            if dates is not None and closes is not None and len(dates) > 0 and len(closes) > 0:
                 fig = price_chart(dates, closes, ticker_detail, r.get("fair_value"))
                 st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
         with g_col2:
