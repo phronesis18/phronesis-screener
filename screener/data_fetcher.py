@@ -11,6 +11,19 @@ import requests
 import time
 import os
 
+import os
+import pandas as pd
+
+def load_precomputed_data() -> pd.DataFrame:
+    """Charge les données depuis data/latest.parquet (généré par GitHub Actions)"""
+    filepath = "data/latest.parquet"
+    if os.path.exists(filepath):
+        return pd.read_parquet(filepath)
+    else:
+        # Fallback local (si le fichier n'existe pas)
+        from .data_fetcher import fetch_batch, get_default_tickers
+        return fetch_batch(get_default_tickers())
+
 # ---------------------------------------------------------------------------
 # CONSTANTES
 # ---------------------------------------------------------------------------
@@ -304,3 +317,5 @@ def _safe(val) -> float | None:
         return round(f, 4)
     except Exception:
         return None
+    
+    
