@@ -33,13 +33,22 @@ LAYOUT_BASE = dict(
 )
 
 
-def price_chart(dates: list, closes: list, ticker: str,
+def price_chart(dates, closes, ticker: str,
                 fair_value: float = None, height: int = 280) -> go.Figure:
     """
     Graphique prix + ligne fair value si disponible.
     """
-    if not dates or not closes:
+    # Vérification robuste pour éviter les erreurs avec des array pandas/numpy
+    if dates is None or closes is None:
         return go.Figure()
+    if len(dates) == 0 or len(closes) == 0:
+        return go.Figure()
+
+    # Conversion sécurisée si ce sont des pandas Series ou numpy arrays
+    if hasattr(dates, 'tolist'):
+        dates = dates.tolist()
+    if hasattr(closes, 'tolist'):
+        closes = closes.tolist()
 
     color = COLORS["green"] if closes[-1] >= closes[0] else COLORS["red"]
 
@@ -171,7 +180,7 @@ def top_opportunities_bar(df: pd.DataFrame, n: int = 8,
         textfont=dict(color=COLORS["text_light"], size=11),
         hovertemplate="%{y}: +%{x:.1f}%<extra></extra>",
     ))
-        # Copie LAYOUT_BASE et fusionne avec les paramètres spécifiques
+    # Copie LAYOUT_BASE et fusionne avec les paramètres spécifiques
     layout = LAYOUT_BASE.copy()
     layout.update(
         height=height,
