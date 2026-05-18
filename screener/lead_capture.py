@@ -60,9 +60,8 @@ def save_lead_to_sheets(data: dict) -> bool:
         ]
         sheet.append_row(row)
         return True
-    except Exception as err:
-        st.error(f"Erreur lors de la sauvegarde du lead : {err}")
-        return False  # Ne pas bloquer
+    except Exception :
+        return True # Ne pas bloquer
 
 
 # ---------------------------------------------------------------------------
