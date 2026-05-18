@@ -1,26 +1,26 @@
 """
 screener/lead_capture.py
 Phronesis Screener — capture leads → Google Sheets
-Formulaire Streamlit affiché avant accès au dashboard.
+Avec validation du numéro WhatsApp via phonenumbers (libphonenumber)
 """
 
 import streamlit as st
 import datetime
-import re
+import phonenumbers
+from phonenumbers import carrier, geocoder, timezone
 
 # ---------------------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------------------
 
-SHEET_ID = "1xURzM2-QhT6D2iYUEkFLoGFpxUyyuOr8IhXC4u-rl2E"   # ← Remplacer par l'ID de ta Google Sheet
-SHEET_NAME = "Leads"                  # Nom de l'onglet
+SHEET_ID = "1xURzM2-QhT6D2iYUEkFLoGFpxUyyuOr8IhXC4u-rl2E"
+SHEET_NAME = "Leads"
 
 # ---------------------------------------------------------------------------
 # SESSION STATE
 # ---------------------------------------------------------------------------
 
 def is_lead_captured() -> bool:
-    """Vérifie si le lead a déjà rempli le formulaire dans cette session."""
     return st.session_state.get("lead_captured", False)
 
 def mark_lead_captured():
@@ -151,22 +151,9 @@ def show_lead_form():
                 "Nigeria", "Ghana", "Kenya", "Autre"
             ])
 
-            indicatif_map = {
-                "Bénin": "+229", "Côte d'Ivoire": "+225", "Sénégal": "+221",
-                "Togo": "+228", "Cameroun": "+237", "Mali": "+223",
-                "Burkina Faso": "+226", "Guinée": "+224", "Niger": "+227",
-                "RDC": "+243", "France": "+33", "Belgique": "+32",
-                "Suisse": "+41", "Canada": "+1", "États-Unis": "+1",
-                "Maroc": "+212", "Tunisie": "+216", "Algérie": "+213",
-                "Nigeria": "+234", "Ghana": "+233", "Kenya": "+254",
-                "Autre": ""
-            }
-            indicatif_attendu = indicatif_map.get(pays, "")
-
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
                 placeholder="Ex: +229 97 00 00 00",
-                value=indicatif_attendu if indicatif_attendu else "",
                 key="whatsapp_input"
             )
 
@@ -199,18 +186,44 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
-                # Validation avec nettoyage regex
-                if whatsapp.strip() and indicatif_attendu:
-                    numero_nettoye = re.sub(r'[^\d+]', '', whatsapp.strip())
-                    if not numero_nettoye.startswith(indicatif_attendu.replace("+", "")):
-                        errors.append(f"Le numéro WhatsApp doit commencer par {indicatif_attendu} (indicatif de {pays}). Veuillez corriger.")
+                # Validation du numéro avec phonenumbers
+                if whatsapp.strip():
+                    try:
+                        # Parser le numéro (suppose un indicatif international)
+                        num_parsed = phonenumbers.parse(whatsapp.strip(), None)
+                        if not phonenumbers.is_valid_number(num_parsed):
+                            errors.append("Le numéro WhatsApp n'est pas valide (format incorrect).")
+                        else:
+                            # Obtenir le code pays à deux lettres (ex: FR, BJ)
+                            pays_code = geocoder.region_code_for_number(num_parsed)
+                            # Conversion du pays sélectionné (ex: "France" → "FR")
+                            pays_to_code = {
+                                "Bénin": "BJ", "Côte d'Ivoire": "CI", "Sénégal": "SN",
+                                "Togo": "TG", "Cameroun": "CM", "Mali": "ML",
+                                "Burkina Faso": "BF", "Guinée": "GN", "Niger": "NE",
+                                "RDC": "CD", "France": "FR", "Belgique": "BE",
+                                "Suisse": "CH", "Canada": "CA", "États-Unis": "US",
+                                "Maroc": "MA", "Tunisie": "TN", "Algérie": "DZ",
+                                "Nigeria": "NG", "Ghana": "GH", "Kenya": "KE",
+                                "Autre": None
+                            }
+                            pays_attendu = pays_to_code.get(pays)
+                            if pays_attendu and pays_code != pays_attendu:
+                                # Récupérer le nom du pays détecté
+                                nom_pays_detecte = geocoder.description_for_number(num_parsed, "fr")
+                                errors.append(
+                                    f"Le numéro WhatsApp correspond au pays {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
+                                    f"mais vous avez sélectionné {pays}. Veuillez corriger le numéro ou le pays."
+                                )
+                    except phonenumbers.NumberParseException:
+                        errors.append("Format du numéro WhatsApp invalide. Utilisez le format international (ex: +229 97 00 00 00).")
 
                 if errors:
                     for err in errors:
                         st.error(err)
                 else:
                     with st.spinner("Enregistrement en cours..."):
-                        save_lead_to_sheets({
+                        success = save_lead_to_sheets({
                             "prenom": prenom.strip(),
                             "email": email.strip().lower(),
                             "whatsapp": whatsapp.strip(),
@@ -218,7 +231,11 @@ def show_lead_form():
                             "profil": profil,
                             "objectif": objectif,
                         })
-                    mark_lead_captured()
+                        if success:
+                            mark_lead_captured()
+                            # Pas de notification pour éviter les erreurs DOM
+                        else:
+                            st.error("Erreur lors de l'enregistrement. Veuillez réessayer.")
 
         st.markdown("""
         <div style="text-align:center;font-size:12px;color:#4B5563;margin-top:16px;line-height:1.6">
