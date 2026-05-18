@@ -1,13 +1,13 @@
 """
 screener/lead_capture.py
 Phronesis Screener — capture leads → Google Sheets
-Avec validation du numéro WhatsApp via phonenumbers (libphonenumber)
+Validation WhatsApp avec phonenumbers (libphonenumber)
 """
 
 import streamlit as st
 import datetime
 import phonenumbers
-from phonenumbers import carrier, geocoder, timezone
+from phonenumbers import geocoder
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -63,7 +63,7 @@ def save_lead_to_sheets(data: dict) -> bool:
         return True
     except Exception as e:
         st.error(f"❌ Erreur Google Sheets : {str(e)}")
-        return False  # Retourne False pour bloquer l'utilisateur en cas d'erreur de sauvegarde
+        return False
 
 # ---------------------------------------------------------------------------
 # FORMULAIRE
@@ -153,7 +153,7 @@ def show_lead_form():
 
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
-                placeholder="Ex: +33 6 12 34 56 78",
+                placeholder="Ex: +229 97 00 00 00",
                 key="whatsapp_input"
             )
 
@@ -186,18 +186,17 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
-                # Validation du numéro avec phonenumbers
+                # Validation avec phonenumbers
                 if whatsapp.strip():
                     try:
-                        # Parser le numéro (suppose un indicatif international)
                         num_parsed = phonenumbers.parse(whatsapp.strip(), None)
                         if not phonenumbers.is_valid_number(num_parsed):
-                            errors.append("Le numéro WhatsApp n'est pas valide (format incorrect).")
+                            errors.append("Numéro WhatsApp invalide (format incorrect).")
                         else:
-                            # Obtenir le code pays à deux lettres (ex: FR, BJ)
-                            pays_code = geocoder.region_code_for_number(num_parsed)
-                            # Conversion du pays sélectionné (ex: "France" → "FR")
-                            pays_to_code = {
+                            # Vérifier la cohérence avec le pays sélectionné
+                            code_pays_detecte = geocoder.region_code_for_number(num_parsed)
+                            # Mapping pays texte -> code ISO
+                            pays_to_iso = {
                                 "Bénin": "BJ", "Côte d'Ivoire": "CI", "Sénégal": "SN",
                                 "Togo": "TG", "Cameroun": "CM", "Mali": "ML",
                                 "Burkina Faso": "BF", "Guinée": "GN", "Niger": "NE",
@@ -207,16 +206,15 @@ def show_lead_form():
                                 "Nigeria": "NG", "Ghana": "GH", "Kenya": "KE",
                                 "Autre": None
                             }
-                            pays_attendu = pays_to_code.get(pays)
-                            if pays_attendu and pays_code != pays_attendu:
-                                # Récupérer le nom du pays détecté
+                            iso_attendu = pays_to_iso.get(pays)
+                            if iso_attendu and code_pays_detecte != iso_attendu:
                                 nom_pays_detecte = geocoder.description_for_number(num_parsed, "fr")
                                 errors.append(
-                                    f"Le numéro WhatsApp correspond au pays {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
-                                    f"mais vous avez sélectionné {pays}. Veuillez corriger le numéro ou le pays."
+                                    f"Le numéro correspond à {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
+                                    f"mais vous avez sélectionné {pays}. Corrigez le numéro ou le pays."
                                 )
                     except phonenumbers.NumberParseException:
-                        errors.append("Format du numéro WhatsApp invalide. Utilisez le format international (ex: +229 97 00 00 00).")
+                        errors.append("Format invalide. Utilisez le format international (ex: +229 97 00 00 00).")
 
                 if errors:
                     for err in errors:
@@ -233,7 +231,6 @@ def show_lead_form():
                         })
                         if success:
                             mark_lead_captured()
-                            # Pas de notification pour éviter les erreurs DOM
                         else:
                             st.error("Erreur lors de l'enregistrement. Veuillez réessayer.")
 
