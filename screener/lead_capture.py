@@ -210,7 +210,7 @@ def show_lead_form():
                                 f"mais vous avez sélectionné {pays}. Corrigez le numéro ou le pays."
                             )
                     except phonenumbers.NumberParseException:
-                        errors.append("Format invalide. Utilisez le format international avec indicatif (ex: +229 97 00 00 00).")
+                        errors.append("Format invalide. Utilisez le format international avec indicatif (ex: +33 1 23 45 67 89).")
 
                 if errors:
                     for err in errors:
