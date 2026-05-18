@@ -164,7 +164,7 @@ def show_lead_form():
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
                 value=indicatif,
-                placeholder="+33 612345678"
+                placeholder="+229 97 00 00 00"
             )
             profil = st.selectbox("Ton niveau en investissement", [
                 "Débutant — je commence tout juste",
@@ -194,10 +194,9 @@ def show_lead_form():
                     errors.append("Merci d'entrer un email valide.")
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
-
-                # (Optionnel) Vérification de cohérence indicatif/pays
+                # --- Vérification bloquante de l'indicatif ---
                 if whatsapp.strip() and indicatif and not whatsapp.strip().startswith(indicatif):
-                    st.warning(f"Le numéro WhatsApp ne commence pas par l'indicatif {indicatif} de {pays}. Vérifiez le numéro.")
+                    errors.append(f"Le numéro WhatsApp doit commencer par l'indicatif {indicatif} pour le pays {pays}. Veuillez corriger.")
 
                 if errors:
                     for err in errors:
