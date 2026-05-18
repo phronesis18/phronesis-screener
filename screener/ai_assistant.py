@@ -1,7 +1,6 @@
 """
 screener/ai_assistant.py
 Phronesis Screener — Assistant IA via DeepSeek API
-Modèle : deepseek-chat (gratuit, mais nécessite un crédit)
 """
 
 import streamlit as st
@@ -124,7 +123,7 @@ def call_deepseek(question: str, asset_context: str = "") -> str | None:
 
     user_content = question
     if asset_context:
-        user_content = f"{asset_context}\n\nQuestion de l'analyste : {question}"
+        user_content = f"{asset_context}\n\nQuestion : {question}"
 
     payload = {
         "model": DEEPSEEK_MODEL,
@@ -143,22 +142,17 @@ def call_deepseek(question: str, asset_context: str = "") -> str | None:
 
     try:
         resp = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30)
-        
         if resp.status_code == 200:
             data = resp.json()
             return data["choices"][0]["message"]["content"]
         elif resp.status_code == 402:
-            return (
-                "⚠️ **Crédits DeepSeek insuffisants.**\n"
-                "Votre compte a été rechargé récemment, cette erreur ne devrait plus apparaître.\n"
-                "Si elle persiste, vérifiez votre solde sur platform.deepseek.com."
-            )
+            return "⚠️ **Crédits DeepSeek insuffisants.** Vérifie ton solde sur platform.deepseek.com."
         elif resp.status_code == 429:
             return "_⚠️ Limite de requêtes DeepSeek atteinte. Réessaie dans quelques secondes._"
         elif resp.status_code == 401:
-            return "_⚠️ Clé API DeepSeek invalide. Vérifie ta clé sur platform.deepseek.com._"
+            return "_⚠️ Clé API DeepSeek invalide. Vérifie ta clé._"
         else:
-            return f"_⚠️ Erreur API DeepSeek : {resp.status_code} — {resp.text[:200]}_"
+            return f"_⚠️ Erreur API DeepSeek : {resp.status_code}_"
     except Exception as e:
         return f"_⚠️ Erreur de connexion : {str(e)[:150]}_"
 
@@ -171,15 +165,12 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
     _init_session()
     remaining = SESSION_LIMIT - st.session_state["ai_request_count"]
 
-    # Header
+    # Header (sans "Propulsé par DeepSeek")
     st.markdown("""
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
         <div style="width:8px;height:8px;background:#10B981;border-radius:50%"></div>
         <span style="font-size:13px;font-weight:600;color:#F9FAFB;letter-spacing:.5px">
             ASSISTANT IA PHRONESIS
-        </span>
-        <span style="font-size:11px;color:#4B5563;margin-left:auto">
-            Propulsé par ASSISTANT IA
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -209,24 +200,21 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
             if st.button(sug, key=f"sug_{i}", width="stretch", disabled=(remaining <= 0)):
                 st.session_state["ai_prefill"] = sug
 
-    # Formulaire avec validation par Entrée
+    # Formulaire avec validation par Entrée (un seul champ + bouton optionnel)
     prefill = st.session_state.pop("ai_prefill", "")
-    with st.form(key="ai_form"):
+    with st.form(key="ai_form", clear_on_submit=False):
         question = st.text_input(
             "Pose ta question :",
             value=prefill,
-            placeholder=f"Ex: Pourquoi {ticker_label} a-t-il ce score ?",
-            key="ai_question_input"
+            placeholder=f"Ex: Pourquoi {ticker_label} a-t-il ce score ? (appuyez sur Entrée)",
+            key="ai_question_input",
+            label_visibility="collapsed"
         )
-        send_clicked = st.form_submit_button(
-            "Analyser avec l'IA →",
-            type="primary",
-            width="stretch",
-            disabled=(remaining <= 0 or not question.strip())
-        )
+        # Bouton de soumission (facultatif, l'utilisateur peut aussi appuyer sur Entrée)
+        submitted = st.form_submit_button("Envoyer", type="primary", width="stretch")
 
-    # Traitement
-    if send_clicked and question.strip():
+    # Si soumission (par bouton ou Entrée)
+    if submitted and question.strip():
         ok, msg = _check_rate_limit()
         if not ok:
             st.warning(msg)
@@ -243,8 +231,9 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
                 "ticker": ticker or "—",
                 "ts": time.strftime("%H:%M"),
             })
+            # Pour éviter de renvoyer la même question, on peut effacer le champ (mais ce n'est pas nécessaire)
 
-    # Historique
+    # Historique (inchangé)
     history = st.session_state.get("ai_history", [])
     if history:
         for entry in reversed(history[-5:]):
@@ -264,11 +253,6 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
         if st.button("Effacer l'historique", key="clear_ai_history"):
             st.session_state["ai_history"] = []
             st.toast("Historique effacé", icon="🗑️")
-
-
-# ---------------------------------------------------------------------------
-# GUIDE DE CONFIGURATION (si clé absente)
-# ---------------------------------------------------------------------------
 
 def show_setup_guide():
     st.markdown("""
