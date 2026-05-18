@@ -1,17 +1,13 @@
 """
 screener/ai_assistant.py
 Phronesis Screener — Assistant IA via DeepSeek API
-───────────────────────────────────────────────────
-Modèle : deepseek-chat (compatible OpenAI SDK)
-API gratuite : https://platform.deepseek.com
-Limite de sécurité : 20 requêtes / session Streamlit
+Modèle : deepseek-chat (gratuit, mais nécessite un crédit)
 """
 
 import streamlit as st
 import requests
 import json
 import time
-from datetime import date
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -19,10 +15,10 @@ from datetime import date
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL   = "deepseek-chat"
-MAX_TOKENS       = 600          # Réponse concise (~400 mots)
-TEMPERATURE      = 0.4          # Précis mais pas robotique
-SESSION_LIMIT    = 20           # Requêtes max par session
-RATE_LIMIT_SEC   = 3            # Délai minimum entre requêtes (s)
+MAX_TOKENS       = 600
+TEMPERATURE      = 0.4
+SESSION_LIMIT    = 20
+RATE_LIMIT_SEC   = 3
 
 SYSTEM_PROMPT = """Tu es l'assistant IA du Club Phronesis, spécialisé en analyse financière et investissement value.
 Tu dois :
@@ -36,11 +32,10 @@ Format : utilise des puces courtes, du gras pour les chiffres clés, et reste fa
 
 
 # ---------------------------------------------------------------------------
-# RATE LIMITING (session state)
+# RATE LIMITING
 # ---------------------------------------------------------------------------
 
 def _init_session():
-    """Initialise les compteurs de session si absents."""
     if "ai_request_count" not in st.session_state:
         st.session_state["ai_request_count"] = 0
     if "ai_last_request_time" not in st.session_state:
@@ -48,27 +43,14 @@ def _init_session():
     if "ai_history" not in st.session_state:
         st.session_state["ai_history"] = []
 
-
-def _check_rate_limit() -> tuple[bool, str]:
-    """
-    Vérifie les limites de taux.
-    Retourne (ok: bool, message_erreur: str).
-    """
+def _check_rate_limit():
     _init_session()
-
-    # Limite de session
     if st.session_state["ai_request_count"] >= SESSION_LIMIT:
-        return False, (
-            f"Limite de {SESSION_LIMIT} questions atteinte pour cette session. "
-            "Rechargez la page pour continuer."
-        )
-
-    # Délai minimum entre requêtes
+        return False, f"Limite de {SESSION_LIMIT} questions atteinte pour cette session. Rechargez la page."
     elapsed = time.time() - st.session_state["ai_last_request_time"]
     if elapsed < RATE_LIMIT_SEC:
         wait = round(RATE_LIMIT_SEC - elapsed, 1)
         return False, f"Veuillez attendre {wait}s avant la prochaine question."
-
     return True, ""
 
 
@@ -77,9 +59,6 @@ def _check_rate_limit() -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def _build_asset_context(row: dict) -> str:
-    """
-    Construit un résumé textuel de l'actif pour enrichir le prompt.
-    """
     ticker  = row.get("ticker", "?")
     name    = row.get("name", ticker)
     price   = row.get("price", 0)
@@ -135,74 +114,61 @@ TECHNIQUE :
 
 
 # ---------------------------------------------------------------------------
-# API CALL
+# API CALL DEEPSEEK
 # ---------------------------------------------------------------------------
 
 def call_deepseek(question: str, asset_context: str = "") -> str | None:
-    """
-    Envoie une question à l'API DeepSeek avec contexte de l'actif.
-    Retourne la réponse texte ou None en cas d'erreur.
-    """
     api_key = st.secrets.get("DEEPSEEK_API_KEY", None)
     if not api_key:
         return "_⚠️ Clé API DeepSeek non configurée. Ajoute `DEEPSEEK_API_KEY` dans les secrets Streamlit._"
 
-    # Construction du message utilisateur
     user_content = question
     if asset_context:
         user_content = f"{asset_context}\n\nQuestion de l'analyste : {question}"
 
     payload = {
-        "model":       DEEPSEEK_MODEL,
-        "max_tokens":  MAX_TOKENS,
+        "model": DEEPSEEK_MODEL,
+        "max_tokens": MAX_TOKENS,
         "temperature": TEMPERATURE,
         "messages": [
-            {"role": "system",  "content": SYSTEM_PROMPT},
-            {"role": "user",    "content": user_content},
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
         ],
     }
 
     headers = {
-        "Content-Type":  "application/json",
+        "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
     }
 
     try:
-        resp = requests.post(
-            DEEPSEEK_API_URL,
-            headers=headers,
-            data=json.dumps(payload),
-            timeout=30,
-        )
-
+        resp = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30)
+        
         if resp.status_code == 200:
             data = resp.json()
             return data["choices"][0]["message"]["content"]
+        elif resp.status_code == 402:
+            return (
+                "⚠️ **Crédits DeepSeek insuffisants.**\n"
+                "Votre compte a été rechargé récemment, cette erreur ne devrait plus apparaître.\n"
+                "Si elle persiste, vérifiez votre solde sur platform.deepseek.com."
+            )
         elif resp.status_code == 429:
             return "_⚠️ Limite de requêtes DeepSeek atteinte. Réessaie dans quelques secondes._"
         elif resp.status_code == 401:
             return "_⚠️ Clé API DeepSeek invalide. Vérifie ta clé sur platform.deepseek.com._"
         else:
             return f"_⚠️ Erreur API DeepSeek : {resp.status_code} — {resp.text[:200]}_"
-
-    except requests.Timeout:
-        return "_⚠️ Délai d'attente dépassé. L'API DeepSeek est peut-être surchargée. Réessaie._"
     except Exception as e:
         return f"_⚠️ Erreur de connexion : {str(e)[:150]}_"
 
 
 # ---------------------------------------------------------------------------
-# UI PRINCIPALE — À appeler dans app.py
+# UI PRINCIPALE
 # ---------------------------------------------------------------------------
 
 def show_ai_assistant(df_row: dict = None, ticker: str = None):
-    """
-    Bloc UI de l'assistant IA.
-    df_row : dict de la ligne screener de l'actif sélectionné (optionnel).
-    ticker : nom du ticker pour contextualiser le placeholder.
-    """
     _init_session()
-
     remaining = SESSION_LIMIT - st.session_state["ai_request_count"]
 
     # Header
@@ -218,7 +184,7 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
     </div>
     """, unsafe_allow_html=True)
 
-    # Compteur restant
+    # Compteur
     counter_color = "#10B981" if remaining > 10 else ("#EAB308" if remaining > 3 else "#EF4444")
     st.markdown(
         f'<div style="font-size:11px;color:{counter_color};margin-bottom:10px">'
@@ -227,7 +193,7 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
         unsafe_allow_html=True,
     )
 
-    # Suggestions rapides
+    # Suggestions
     ticker_label = ticker or "cet actif"
     suggestions = [
         f"Pourquoi {ticker_label} est-il {df_row.get('signal','noté ainsi').lower() if df_row else 'ainsi noté'} ?",
@@ -236,39 +202,30 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
         "Explique la méthode de fair value utilisée",
     ]
 
-    st.markdown('<div style="font-size:11px;color:#6B7280;margin-bottom:6px">Suggestions rapides :</div>',
-                unsafe_allow_html=True)
+    st.markdown('<div style="font-size:11px;color:#6B7280;margin-bottom:6px">Suggestions rapides :</div>', unsafe_allow_html=True)
     sug_cols = st.columns(2)
     for i, sug in enumerate(suggestions[:4]):
         with sug_cols[i % 2]:
-            if st.button(sug, key=f"sug_{i}", width="stretch",
-                         disabled=(remaining <= 0)):
+            if st.button(sug, key=f"sug_{i}", width="stretch", disabled=(remaining <= 0)):
                 st.session_state["ai_prefill"] = sug
 
-    # Champ de question
+    # Formulaire avec validation par Entrée
     prefill = st.session_state.pop("ai_prefill", "")
-    question = st.text_area(
-        "Pose ta question sur cet actif :",
-        value=prefill,
-        placeholder=(
-            f"Ex: Pourquoi {ticker_label} a-t-il ce score ? "
-            "Quels sont ses risques ? Comment interpréter son RSI ?"
-        ),
-        height=80,
-        key="ai_question_input",
-        label_visibility="collapsed",
-    )
-
-    send_col, _ = st.columns([2, 3])
-    with send_col:
-        send_clicked = st.button(
+    with st.form(key="ai_form"):
+        question = st.text_input(
+            "Pose ta question :",
+            value=prefill,
+            placeholder=f"Ex: Pourquoi {ticker_label} a-t-il ce score ?",
+            key="ai_question_input"
+        )
+        send_clicked = st.form_submit_button(
             "Analyser avec l'IA →",
             type="primary",
             width="stretch",
-            disabled=(remaining <= 0 or not question.strip()),
+            disabled=(remaining <= 0 or not question.strip())
         )
 
-    # Traitement de la requête
+    # Traitement
     if send_clicked and question.strip():
         ok, msg = _check_rate_limit()
         if not ok:
@@ -278,11 +235,8 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
             with st.spinner("Analyse en cours..."):
                 answer = call_deepseek(question.strip(), context)
 
-            # Mise à jour des compteurs
             st.session_state["ai_request_count"] += 1
             st.session_state["ai_last_request_time"] = time.time()
-
-            # Sauvegarde dans l'historique
             st.session_state["ai_history"].append({
                 "q": question.strip(),
                 "a": answer,
@@ -290,50 +244,43 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
                 "ts": time.strftime("%H:%M"),
             })
 
-    # Affichage de l'historique (plus récent en premier)
+    # Historique
     history = st.session_state.get("ai_history", [])
     if history:
-        for entry in reversed(history[-5:]):   # Max 5 derniers échanges
-            # Question
+        for entry in reversed(history[-5:]):
             st.markdown(f"""
-            <div style="background:#1F2937;border-radius:8px 8px 0 0;
-                        padding:10px 14px;margin-top:12px;border-left:3px solid #3B82F6">
+            <div style="background:#1F2937;border-radius:8px 8px 0 0; padding:10px 14px;margin-top:12px;border-left:3px solid #3B82F6">
                 <span style="font-size:11px;color:#6B7280">{entry['ts']} · {entry['ticker']}</span><br>
                 <span style="font-size:13px;color:#93C5FD;font-weight:500">{entry['q']}</span>
             </div>
             """, unsafe_allow_html=True)
-            # Réponse
             with st.container():
                 st.markdown(f"""
-                <div style="background:#111827;border-radius:0 0 8px 8px;
-                            padding:14px 16px;border-left:3px solid #10B981;margin-bottom:4px">
+                <div style="background:#111827;border-radius:0 0 8px 8px; padding:14px 16px;border-left:3px solid #10B981;margin-bottom:4px">
                 """, unsafe_allow_html=True)
                 st.markdown(entry["a"])
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        # Bouton effacer historique - sans st.rerun(), on vide simplement la session
         if st.button("Effacer l'historique", key="clear_ai_history"):
             st.session_state["ai_history"] = []
-            # Pas de st.rerun() - l'interface se met à jour automatiquement
             st.toast("Historique effacé", icon="🗑️")
 
 
 # ---------------------------------------------------------------------------
-# SETUP GUIDE — Affiché si la clé API est absente
+# GUIDE DE CONFIGURATION (si clé absente)
 # ---------------------------------------------------------------------------
 
 def show_setup_guide():
-    """Affiche les instructions de configuration si la clé DeepSeek est absente."""
     st.markdown("""
     <div style="background:#1F2937;border:1px solid #374151;border-radius:10px;padding:16px 20px">
         <div style="font-weight:600;color:#F9FAFB;margin-bottom:10px">
             ⚙️ Configurer l'Assistant IA
         </div>
         <div style="font-size:13px;color:#9CA3AF;line-height:1.8">
-            1. Crée un compte gratuit sur <strong style="color:#F9FAFB">platform.deepseek.com</strong><br>
+            1. Crée un compte gratuit sur <strong>platform.deepseek.com</strong><br>
             2. Génère une clé API dans ton dashboard<br>
-            3. Dans Streamlit Cloud → <strong style="color:#F9FAFB">App settings → Secrets</strong><br>
-            4. Ajoute : <code style="color:#10B981;background:#0F2027;padding:2px 6px;border-radius:4px">DEEPSEEK_API_KEY = "sk-..."</code><br>
+            3. Dans Streamlit Cloud → <strong>App settings → Secrets</strong><br>
+            4. Ajoute : <code>DEEPSEEK_API_KEY = "sk-..."</code><br>
             5. Redémarre l'application
         </div>
     </div>
