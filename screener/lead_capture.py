@@ -60,9 +60,9 @@ def save_lead_to_sheets(data: dict) -> bool:
         ]
         sheet.append_row(row)
         return True
-    except Exception as e:
-    st.error(f"❌ Erreur détaillée : {str(e)}")
-    return False
+    except Exception:
+        return False  # Ne pas bloquer
+
 
 # ---------------------------------------------------------------------------
 # FORMULAIRE
