@@ -153,7 +153,7 @@ def show_lead_form():
 
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
-                placeholder="Ex: +229 97 00 00 00",
+                placeholder="Ex: +33 6 12 34 56 78",
                 key="whatsapp_input"
             )
 
