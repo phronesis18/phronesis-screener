@@ -143,7 +143,7 @@ def show_lead_form():
         with st.form("lead_form", clear_on_submit=False):
             prenom = st.text_input("Prénom *", placeholder="Ex : Jean-Baptiste")
             email = st.text_input("Email *", placeholder="nom@exemple.com")
-            whatsapp = st.text_input("WhatsApp (avec indicatif) *", placeholder="+229 97 00 00 00")
+            whatsapp = st.text_input("WhatsApp (avec indicatif) *", placeholder="+33 0 00 00 00 00")
             pays = st.selectbox("Pays de résidence", [
                 "Bénin", "Côte d'Ivoire", "Sénégal", "Togo", "Cameroun",
                 "Mali", "Burkina Faso", "Guinée", "Niger", "RDC",
