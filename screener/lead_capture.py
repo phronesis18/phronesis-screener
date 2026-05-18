@@ -1,7 +1,7 @@
 """
 screener/lead_capture.py
 Phronesis Screener — capture leads → Google Sheets
-Validation WhatsApp avec phonenumbers (libphonenumber)
+Validation WhatsApp avec phonenumbers (version assouplie)
 """
 
 import streamlit as st
@@ -186,35 +186,30 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
-                # Validation avec phonenumbers
+                # Validation assouplie avec phonenumbers (pas de is_valid_number)
                 if whatsapp.strip():
                     try:
                         num_parsed = phonenumbers.parse(whatsapp.strip(), None)
-                        if not phonenumbers.is_valid_number(num_parsed):
-                            errors.append("Numéro WhatsApp invalide (format incorrect).")
-                        else:
-                            # Vérifier la cohérence avec le pays sélectionné
-                            code_pays_detecte = geocoder.region_code_for_number(num_parsed)
-                            # Mapping pays texte -> code ISO
-                            pays_to_iso = {
-                                "Bénin": "BJ", "Côte d'Ivoire": "CI", "Sénégal": "SN",
-                                "Togo": "TG", "Cameroun": "CM", "Mali": "ML",
-                                "Burkina Faso": "BF", "Guinée": "GN", "Niger": "NE",
-                                "RDC": "CD", "France": "FR", "Belgique": "BE",
-                                "Suisse": "CH", "Canada": "CA", "États-Unis": "US",
-                                "Maroc": "MA", "Tunisie": "TN", "Algérie": "DZ",
-                                "Nigeria": "NG", "Ghana": "GH", "Kenya": "KE",
-                                "Autre": None
-                            }
-                            iso_attendu = pays_to_iso.get(pays)
-                            if iso_attendu and code_pays_detecte != iso_attendu:
-                                nom_pays_detecte = geocoder.description_for_number(num_parsed, "fr")
-                                errors.append(
-                                    f"Le numéro correspond à {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
-                                    f"mais vous avez sélectionné {pays}. Corrigez le numéro ou le pays."
-                                )
+                        code_pays_detecte = geocoder.region_code_for_number(num_parsed)
+                        pays_to_iso = {
+                            "Bénin": "BJ", "Côte d'Ivoire": "CI", "Sénégal": "SN",
+                            "Togo": "TG", "Cameroun": "CM", "Mali": "ML",
+                            "Burkina Faso": "BF", "Guinée": "GN", "Niger": "NE",
+                            "RDC": "CD", "France": "FR", "Belgique": "BE",
+                            "Suisse": "CH", "Canada": "CA", "États-Unis": "US",
+                            "Maroc": "MA", "Tunisie": "TN", "Algérie": "DZ",
+                            "Nigeria": "NG", "Ghana": "GH", "Kenya": "KE",
+                            "Autre": None
+                        }
+                        iso_attendu = pays_to_iso.get(pays)
+                        if iso_attendu and code_pays_detecte != iso_attendu:
+                            nom_pays_detecte = geocoder.description_for_number(num_parsed, "fr")
+                            errors.append(
+                                f"Le numéro correspond à {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
+                                f"mais vous avez sélectionné {pays}. Corrigez le numéro ou le pays."
+                            )
                     except phonenumbers.NumberParseException:
-                        errors.append("Format invalide. Utilisez le format international (ex: +229 97 00 00 00).")
+                        errors.append("Format invalide. Utilisez le format international, ex: +33 6 12 34 56 78.")
 
                 if errors:
                     for err in errors:
