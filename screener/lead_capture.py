@@ -164,7 +164,7 @@ def show_lead_form():
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
                 value=indicatif,
-                placeholder="+229 97 00 00 00"
+                placeholder="+33 612345678"
             )
             profil = st.selectbox("Ton niveau en investissement", [
                 "Débutant — je commence tout juste",
