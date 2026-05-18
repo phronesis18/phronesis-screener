@@ -63,7 +63,7 @@ def save_lead_to_sheets(data: dict) -> bool:
         return True
     except Exception as e:
         st.error(f"❌ Erreur Google Sheets : {str(e)}")
-        return True  # Retourne true pour ne pas bloquer l'utilisateur en cas d'erreur de sauvegarde
+        return False  # Retourne False pour bloquer l'utilisateur en cas d'erreur de sauvegarde
 
 # ---------------------------------------------------------------------------
 # FORMULAIRE
