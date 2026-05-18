@@ -61,15 +61,15 @@ def save_lead_to_sheets(data: dict) -> bool:
         ]
         sheet.append_row(row)
         return True
-    except Exception:
-        return True  # Ne pas bloquer
+    except Exception as e:
+        st.error(f"❌ Erreur Google Sheets : {str(e)}")
+        return False
 
 # ---------------------------------------------------------------------------
 # FORMULAIRE
 # ---------------------------------------------------------------------------
 
 def show_lead_form():
-    # CSS (inchangé)
     st.markdown("""
     <style>
     .gate-hero {
@@ -151,7 +151,6 @@ def show_lead_form():
                 "Nigeria", "Ghana", "Kenya", "Autre"
             ])
 
-            # Dictionnaire des indicatifs
             indicatif_map = {
                 "Bénin": "+229", "Côte d'Ivoire": "+225", "Sénégal": "+221",
                 "Togo": "+228", "Cameroun": "+237", "Mali": "+223",
@@ -164,11 +163,11 @@ def show_lead_form():
             }
             indicatif_attendu = indicatif_map.get(pays, "")
 
-            # Champ unique avec pré‑remplissage de l'indicatif
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
-                value=indicatif_attendu,
-                placeholder="Ex: +33 612345678"
+                placeholder="Ex: +229 97 00 00 00",
+                value=indicatif_attendu if indicatif_attendu else "",
+                key="whatsapp_input"
             )
 
             profil = st.selectbox("Ton niveau en investissement", [
@@ -200,9 +199,8 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
-                # Validation de l'indicatif (bloquante)
+                # Validation avec nettoyage regex
                 if whatsapp.strip() and indicatif_attendu:
-                    # Nettoyer le numéro : garder seulement + et chiffres
                     numero_nettoye = re.sub(r'[^\d+]', '', whatsapp.strip())
                     if not numero_nettoye.startswith(indicatif_attendu.replace("+", "")):
                         errors.append(f"Le numéro WhatsApp doit commencer par {indicatif_attendu} (indicatif de {pays}). Veuillez corriger.")
@@ -221,9 +219,7 @@ def show_lead_form():
                             "objectif": objectif,
                         })
                     mark_lead_captured()
-                    # Le screener apparaît automatiquement après le rechargement
 
-        # Footer
         st.markdown("""
         <div style="text-align:center;font-size:12px;color:#4B5563;margin-top:16px;line-height:1.6">
             Tes données sont confidentielles et ne seront jamais revendues.<br>
