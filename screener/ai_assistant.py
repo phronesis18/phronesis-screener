@@ -179,7 +179,7 @@ def show_ai_assistant(df_row: dict = None, ticker: str = None):
             ASSISTANT IA PHRONESIS
         </span>
         <span style="font-size:11px;color:#4B5563;margin-left:auto">
-            Propulsé par DeepSeek
+            Propulsé par ASSISTANT IA
         </span>
     </div>
     """, unsafe_allow_html=True)
