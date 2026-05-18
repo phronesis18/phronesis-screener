@@ -1,7 +1,7 @@
 """
 screener/lead_capture.py
 Phronesis Screener — capture leads → Google Sheets
-Validation WhatsApp avec phonenumbers (version assouplie)
+Validation WhatsApp avec phonenumbers (uniquement parsing + cohérence pays)
 """
 
 import streamlit as st
@@ -153,7 +153,7 @@ def show_lead_form():
 
             whatsapp = st.text_input(
                 "WhatsApp (avec indicatif) *",
-                placeholder="Ex: +33 6 12 34 56 78",
+                placeholder="Ex: +229 97 00 00 00",
                 key="whatsapp_input"
             )
 
@@ -186,10 +186,11 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
-                # Validation assouplie avec phonenumbers (pas de is_valid_number)
+                # Validation : on ne teste que le parsing et la cohérence pays
                 if whatsapp.strip():
                     try:
                         num_parsed = phonenumbers.parse(whatsapp.strip(), None)
+                        # On ne vérifie pas is_valid_number, on accepte tout numéro parsable
                         code_pays_detecte = geocoder.region_code_for_number(num_parsed)
                         pays_to_iso = {
                             "Bénin": "BJ", "Côte d'Ivoire": "CI", "Sénégal": "SN",
@@ -205,11 +206,11 @@ def show_lead_form():
                         if iso_attendu and code_pays_detecte != iso_attendu:
                             nom_pays_detecte = geocoder.description_for_number(num_parsed, "fr")
                             errors.append(
-                                f"Le numéro correspond à {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
+                                f"⚠️ Le numéro correspond à {nom_pays_detecte} (indicatif {num_parsed.country_code}), "
                                 f"mais vous avez sélectionné {pays}. Corrigez le numéro ou le pays."
                             )
                     except phonenumbers.NumberParseException:
-                        errors.append("Format invalide. Utilisez le format international, ex: +33 6 12 34 56 78.")
+                        errors.append("Format invalide. Utilisez le format international avec indicatif (ex: +229 97 00 00 00).")
 
                 if errors:
                     for err in errors:
