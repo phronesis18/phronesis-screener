@@ -60,9 +60,8 @@ def save_lead_to_sheets(data: dict) -> bool:
         ]
         sheet.append_row(row)
         return True
-    except Exception :
-        return True # Ne pas bloquer
-
+    except Exception:
+        return True  # Ne pas bloquer
 
 # ---------------------------------------------------------------------------
 # FORMULAIRE
@@ -143,7 +142,6 @@ def show_lead_form():
         with st.form("lead_form", clear_on_submit=False):
             prenom = st.text_input("Prénom *", placeholder="Ex : Jean-Baptiste")
             email = st.text_input("Email *", placeholder="nom@exemple.com")
-            whatsapp = st.text_input("WhatsApp (avec indicatif) *", placeholder="+33 0 00 00 00 00")
             pays = st.selectbox("Pays de résidence", [
                 "Bénin", "Côte d'Ivoire", "Sénégal", "Togo", "Cameroun",
                 "Mali", "Burkina Faso", "Guinée", "Niger", "RDC",
@@ -151,6 +149,23 @@ def show_lead_form():
                 "États-Unis", "Maroc", "Tunisie", "Algérie",
                 "Nigeria", "Ghana", "Kenya", "Autre"
             ])
+            # --- Dictionnaire des indicatifs téléphoniques ---
+            indicatif_map = {
+                "Bénin": "+229", "Côte d'Ivoire": "+225", "Sénégal": "+221",
+                "Togo": "+228", "Cameroun": "+237", "Mali": "+223",
+                "Burkina Faso": "+226", "Guinée": "+224", "Niger": "+227",
+                "RDC": "+243", "France": "+33", "Belgique": "+32",
+                "Suisse": "+41", "Canada": "+1", "États-Unis": "+1",
+                "Maroc": "+212", "Tunisie": "+216", "Algérie": "+213",
+                "Nigeria": "+234", "Ghana": "+233", "Kenya": "+254",
+                "Autre": ""
+            }
+            indicatif = indicatif_map.get(pays, "")
+            whatsapp = st.text_input(
+                "WhatsApp (avec indicatif) *",
+                value=indicatif,
+                placeholder="+229 97 00 00 00"
+            )
             profil = st.selectbox("Ton niveau en investissement", [
                 "Débutant — je commence tout juste",
                 "Intermédiaire — 1 à 5 ans d'expérience",
@@ -180,6 +195,10 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
+                # (Optionnel) Vérification de cohérence indicatif/pays
+                if whatsapp.strip() and indicatif and not whatsapp.strip().startswith(indicatif):
+                    st.warning(f"Le numéro WhatsApp ne commence pas par l'indicatif {indicatif} de {pays}. Vérifiez le numéro.")
+
                 if errors:
                     for err in errors:
                         st.error(err)
@@ -194,8 +213,7 @@ def show_lead_form():
                             "objectif": objectif,
                         })
                     mark_lead_captured()
-                    # AUCUNE NOTIFICATION (ni success, ni toast)
-                    # Le rechargement naturel du formulaire affichera le screener
+                    # Aucune notification (ni success, ni toast)
 
         # Footer
         st.markdown("""
