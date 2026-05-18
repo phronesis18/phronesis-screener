@@ -149,7 +149,8 @@ def show_lead_form():
                 "États-Unis", "Maroc", "Tunisie", "Algérie",
                 "Nigeria", "Ghana", "Kenya", "Autre"
             ])
-            # --- Dictionnaire des indicatifs téléphoniques ---
+
+            # Dictionnaire des indicatifs
             indicatif_map = {
                 "Bénin": "+229", "Côte d'Ivoire": "+225", "Sénégal": "+221",
                 "Togo": "+228", "Cameroun": "+237", "Mali": "+223",
@@ -160,12 +161,32 @@ def show_lead_form():
                 "Nigeria": "+234", "Ghana": "+233", "Kenya": "+254",
                 "Autre": ""
             }
-            indicatif = indicatif_map.get(pays, "")
-            whatsapp = st.text_input(
-                "WhatsApp (avec indicatif) *",
-                value=indicatif,
-                placeholder="+229 97 00 00 00"
-            )
+            indicatif_par_defaut = indicatif_map.get(pays, "")
+
+            # Deux champs pour le numéro de téléphone
+            col_ind, col_num = st.columns([1, 3])
+            with col_ind:
+                # Liste des indicatifs uniques (sans doublon, avec "Autre" → "")
+                indicatifs_uniques = sorted(set(indicatif_map.values()))
+                if "" in indicatifs_uniques:
+                    indicatifs_uniques.remove("")
+                indicatifs_uniques.append("")  # Ajouter "Autre" en dernier
+                indicatif = st.selectbox(
+                    "Indicatif",
+                    options=indicatifs_uniques,
+                    index=indicatifs_uniques.index(indicatif_par_defaut) if indicatif_par_defaut in indicatifs_uniques else 0,
+                    key="indicatif_sel"
+                )
+            with col_num:
+                numero_local = st.text_input(
+                    "Numéro WhatsApp",
+                    placeholder="97 00 00 00",
+                    key="numero_local"
+                )
+
+            # Fusionner pour l'envoi
+            whatsapp_complet = (indicatif + " " + numero_local.strip()) if indicatif and numero_local else ""
+
             profil = st.selectbox("Ton niveau en investissement", [
                 "Débutant — je commence tout juste",
                 "Intermédiaire — 1 à 5 ans d'expérience",
@@ -192,11 +213,8 @@ def show_lead_form():
                     errors.append("Le prénom est obligatoire.")
                 if not email.strip() or "@" not in email:
                     errors.append("Merci d'entrer un email valide.")
-                if not whatsapp.strip():
-                    errors.append("Le numéro WhatsApp est obligatoire.")
-                # --- Vérification bloquante de l'indicatif ---
-                if whatsapp.strip() and indicatif and not whatsapp.strip().startswith(indicatif):
-                    errors.append(f"Le numéro WhatsApp doit commencer par l'indicatif {indicatif} pour le pays {pays}. Veuillez corriger.")
+                if not indicatif or not numero_local.strip():
+                    errors.append("Le numéro WhatsApp (indicatif + numéro) est obligatoire.")
 
                 if errors:
                     for err in errors:
@@ -206,13 +224,12 @@ def show_lead_form():
                         save_lead_to_sheets({
                             "prenom": prenom.strip(),
                             "email": email.strip().lower(),
-                            "whatsapp": whatsapp.strip(),
+                            "whatsapp": whatsapp_complet,
                             "pays": pays,
                             "profil": profil,
                             "objectif": objectif,
                         })
                     mark_lead_captured()
-                    # Aucune notification (ni success, ni toast)
 
         # Footer
         st.markdown("""
