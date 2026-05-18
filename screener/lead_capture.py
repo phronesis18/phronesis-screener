@@ -6,6 +6,7 @@ Formulaire Streamlit affiché avant accès au dashboard.
 
 import streamlit as st
 import datetime
+import re
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -161,31 +162,14 @@ def show_lead_form():
                 "Nigeria": "+234", "Ghana": "+233", "Kenya": "+254",
                 "Autre": ""
             }
-            indicatif_par_defaut = indicatif_map.get(pays, "")
+            indicatif_attendu = indicatif_map.get(pays, "")
 
-            # Deux champs pour le numéro de téléphone
-            col_ind, col_num = st.columns([1, 3])
-            with col_ind:
-                # Liste des indicatifs uniques (sans doublon, avec "Autre" → "")
-                indicatifs_uniques = sorted(set(indicatif_map.values()))
-                if "" in indicatifs_uniques:
-                    indicatifs_uniques.remove("")
-                indicatifs_uniques.append("")  # Ajouter "Autre" en dernier
-                indicatif = st.selectbox(
-                    "Indicatif",
-                    options=indicatifs_uniques,
-                    index=indicatifs_uniques.index(indicatif_par_defaut) if indicatif_par_defaut in indicatifs_uniques else 0,
-                    key="indicatif_sel"
-                )
-            with col_num:
-                numero_local = st.text_input(
-                    "Numéro WhatsApp",
-                    placeholder="97 00 00 00",
-                    key="numero_local"
-                )
-
-            # Fusionner pour l'envoi
-            whatsapp_complet = (indicatif + " " + numero_local.strip()) if indicatif and numero_local else ""
+            # Champ unique avec pré‑remplissage de l'indicatif
+            whatsapp = st.text_input(
+                "WhatsApp (avec indicatif) *",
+                value=indicatif_attendu,
+                placeholder="Ex: +33 612345678"
+            )
 
             profil = st.selectbox("Ton niveau en investissement", [
                 "Débutant — je commence tout juste",
@@ -213,8 +197,15 @@ def show_lead_form():
                     errors.append("Le prénom est obligatoire.")
                 if not email.strip() or "@" not in email:
                     errors.append("Merci d'entrer un email valide.")
-                if not indicatif or not numero_local.strip():
-                    errors.append("Le numéro WhatsApp (indicatif + numéro) est obligatoire.")
+                if not whatsapp.strip():
+                    errors.append("Le numéro WhatsApp est obligatoire.")
+
+                # Validation de l'indicatif (bloquante)
+                if whatsapp.strip() and indicatif_attendu:
+                    # Nettoyer le numéro : garder seulement + et chiffres
+                    numero_nettoye = re.sub(r'[^\d+]', '', whatsapp.strip())
+                    if not numero_nettoye.startswith(indicatif_attendu.replace("+", "")):
+                        errors.append(f"Le numéro WhatsApp doit commencer par {indicatif_attendu} (indicatif de {pays}). Veuillez corriger.")
 
                 if errors:
                     for err in errors:
@@ -224,12 +215,13 @@ def show_lead_form():
                         save_lead_to_sheets({
                             "prenom": prenom.strip(),
                             "email": email.strip().lower(),
-                            "whatsapp": whatsapp_complet,
+                            "whatsapp": whatsapp.strip(),
                             "pays": pays,
                             "profil": profil,
                             "objectif": objectif,
                         })
                     mark_lead_captured()
+                    # Le screener apparaît automatiquement après le rechargement
 
         # Footer
         st.markdown("""
