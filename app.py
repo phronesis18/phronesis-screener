@@ -183,7 +183,7 @@ with h_col2:
 with h_col3:
     st.markdown("""
     <div style="text-align:right;padding-top:12px;font-size:12px;color:#4B5563">
-        Données mises à jour toutes les heures · Fichier pré-calculé
+        Données mises à jour toutes les heures
     </div>
     """, unsafe_allow_html=True)
 
@@ -417,7 +417,6 @@ if ticker_detail:
         with g_col1:
             dates  = r.get("hist_dates", [])
             closes = r.get("hist_closes", [])
-            # Correction de la condition
             if dates is not None and closes is not None and len(dates) > 0 and len(closes) > 0:
                 fig = price_chart(dates, closes, ticker_detail, r.get("fair_value"))
                 st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
