@@ -61,8 +61,10 @@ def save_lead_to_sheets(data: dict) -> bool:
         ]
         sheet.append_row(row)
         return True
-    except Exception :
-        return True  # Retourne True même en cas d'erreur pour ne pas bloquer l'utilisateur (mais log l'erreur dans la console)
+    except Exception as e:
+        st.error(f"❌ Erreur Google Sheets : {str(e)}")
+        return True  # Retourne true pour ne pas bloquer l'utilisateur en cas d'erreur de sauvegarde
+
 # ---------------------------------------------------------------------------
 # FORMULAIRE
 # ---------------------------------------------------------------------------
