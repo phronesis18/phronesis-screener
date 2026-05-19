@@ -1,7 +1,7 @@
 """
 screener/lead_capture.py
 Phronesis Screener — capture leads → Google Sheets
-Validation WhatsApp avec phonenumbers (uniquement parsing + cohérence pays)
+Avec anti‑doublon (vérification email) et persistance via URL.
 """
 
 import streamlit as st
@@ -17,18 +17,36 @@ SHEET_ID = "1xURzM2-QhT6D2iYUEkFLoGFpxUyyuOr8IhXC4u-rl2E"
 SHEET_NAME = "Leads"
 
 # ---------------------------------------------------------------------------
-# SESSION STATE
+# SESSION STATE & URL PERSISTENCE
 # ---------------------------------------------------------------------------
 
 def is_lead_captured() -> bool:
-    return st.session_state.get("lead_captured", False)
+    """Vérifie si le lead est déjà capturé (session ou paramètre URL)."""
+    if st.session_state.get("lead_captured", False):
+        return True
+    # Si l'email est présent dans l'URL, on considère que le lead est déjà capturé
+    email_in_url = st.query_params.get("email")
+    if email_in_url:
+        st.session_state["lead_captured"] = True
+        return True
+    return False
 
-def mark_lead_captured():
+def mark_lead_captured(email: str):
+    """Marque le lead comme capturé et enregistre l'email dans l'URL."""
     st.session_state["lead_captured"] = True
+    st.query_params["email"] = email
 
 # ---------------------------------------------------------------------------
-# SAUVEGARDE GOOGLE SHEETS
+# GOOGLE SHEETS – VÉRIFICATION DOUBLON + SAUVEGARDE
 # ---------------------------------------------------------------------------
+
+def email_exists_in_sheet(email: str, client, sheet) -> bool:
+    """Retourne True si l'email existe déjà dans la colonne email (colonne 3)."""
+    try:
+        col = sheet.col_values(3)  # colonne C (email)
+        return email in col
+    except Exception:
+        return False
 
 def save_lead_to_sheets(data: dict) -> bool:
     try:
@@ -50,10 +68,15 @@ def save_lead_to_sheets(data: dict) -> bool:
         client = gspread.authorize(creds)
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
+        email = data.get("email", "")
+        if email_exists_in_sheet(email, client, sheet):
+            # Email déjà présent → on ne l'ajoute pas (pas de doublon)
+            return True
+
         row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             data.get("prenom", ""),
-            data.get("email", ""),
+            email,
             data.get("whatsapp", ""),
             data.get("pays", ""),
             data.get("profil", ""),
@@ -186,11 +209,10 @@ def show_lead_form():
                 if not whatsapp.strip():
                     errors.append("Le numéro WhatsApp est obligatoire.")
 
-                # Validation : on ne teste que le parsing et la cohérence pays
+                # Validation WhatsApp
                 if whatsapp.strip():
                     try:
                         num_parsed = phonenumbers.parse(whatsapp.strip(), None)
-                        # On ne vérifie pas is_valid_number, on accepte tout numéro parsable
                         code_pays_detecte = geocoder.region_code_for_number(num_parsed)
                         pays_to_iso = {
                             "Bénin": "BJ", "Côte d'Ivoire": "CI", "Sénégal": "SN",
@@ -226,7 +248,7 @@ def show_lead_form():
                             "objectif": objectif,
                         })
                         if success:
-                            mark_lead_captured()
+                            mark_lead_captured(email.strip().lower())  # Passe l'email pour l'URL
                         else:
                             st.error("Erreur lors de l'enregistrement. Veuillez réessayer.")
 
