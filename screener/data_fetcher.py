@@ -68,6 +68,7 @@ ASSET_TYPES = {
     "COIN": "Action", "SQ": "Action", "PYPL": "Action", "SHOP": "Action",
     "SPOT": "Action", "ROKU": "Action", "TTD": "Action", "ZS": "Action",
     "MRNA": "Action", "BIIB": "Action", "ILMN": "Action", "WBA": "Action",
+    "NIO": "Action","RIVN": "Action","RKLB": "Action","SOFI": "Action",
     # === ETF ===
     "SPY": "ETF", "QQQ": "ETF", "IVV": "ETF", "VOO": "ETF",
     "VTI": "ETF", "VT": "ETF", "BND": "ETF", "AGG": "ETF",
