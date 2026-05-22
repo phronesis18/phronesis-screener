@@ -68,6 +68,8 @@ ASSET_TYPES = {
     "COIN": "Action", "SQ": "Action", "PYPL": "Action", "SHOP": "Action",
     "SPOT": "Action", "ROKU": "Action", "TTD": "Action", "ZS": "Action",
     "MRNA": "Action", "BIIB": "Action", "ILMN": "Action", "WBA": "Action",
+    "NIO": "Action", "RKLB": "Action", "SOFI": "Action", "JOBY": "Action",
+
     # === ETF ===
     "SPY": "ETF", "QQQ": "ETF", "IVV": "ETF", "VOO": "ETF",
     "VTI": "ETF", "VT": "ETF", "BND": "ETF", "AGG": "ETF",
@@ -282,6 +284,16 @@ def get_default_tickers():
     return [
         "AAPL", "MSFT", "GOOGL", "AMZN", "META",
         "JPM", "JNJ", "V", "NVDA", "TSLA",
+        "AMD", "INTC", "CSCO", "IBM", "ORCL",
+        "KO", "PEP", "COST", "CVX", "XOM",
+        "BAC", "WFC", "C", "GS", "MS", "AXP",
+        "CAT", "GE", "BA", "MMM", "HON", "UPS",
+        "FDX", "NKE", "SBUX", "MCD", "CMCSA", "T",
+        "VZ", "TMUS", "ABT", "TMO", "MRK", "PFE",
+        "ABBV", "LLY", "BMY", "GILD", "REGN", "VRTX",
+        "SPGI", "BLK", "SCHW", "ICE", "DE", "LMT",
+        "NIOC", "RTX", "GD", "LHX", "ADP", "PAYX",
+        "NIO", "RKLB", "SOFI", "JOBY",
         "SPY", "QQQ", "GLD",
         "BTC-USD", "ETH-USD",
         "EURUSD=X", "GBPUSD=X",

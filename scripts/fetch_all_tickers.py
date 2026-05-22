@@ -127,6 +127,10 @@ CLASSIFICATION = {
     "BIIB":   ("Action", "NASDAQ"),
     "ILMN":   ("Action", "NASDAQ"),
     "WBA":    ("Action", "NASDAQ"),
+    "NIO":    ("Action", "NASDAQ"),
+    "RKLB":   ("Action", "NYSE"),
+    "SOFI":   ("Action", "NASDAQ"),
+    "JOBY":   ("Action", "NYSE"),
 
     # ----- ETF (bourses variées) -----
     "SPY":    ("ETF", "NYSE"),
