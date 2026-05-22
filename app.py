@@ -3,7 +3,7 @@ app.py
 Phronesis Screener — Application principale Streamlit
 Avec mode dark (toggle sidebar) + assistant IA contextuel + recherche dynamique.
 Chargement des données depuis fichier pré-calculé + persistance des tickers ajoutés.
-Bouton "☰" pour rouvrir la sidebar.
+Bouton natif de la sidebar visible.
 """
 
 import streamlit as st
@@ -28,7 +28,7 @@ st.set_page_config(
     page_title="Phronesis Screener — Actifs Sous-évalués",
     page_icon="🏛",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="expanded",
     menu_items={
         "Get Help": None,
         "Report a bug": None,
@@ -37,43 +37,18 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# BOUTON POUR ROUVRIR LA SIDEBAR (s'affiche dans le header)
-# ---------------------------------------------------------------------------
-# On utilise un paramètre d'URL pour forcer l'ouverture de la sidebar
-if "sidebar_open" not in st.session_state:
-    st.session_state.sidebar_open = True
-
-# En-tête avec bouton
-with st.container():
-    col_left, col_mid, col_right = st.columns([0.5, 8, 1])
-    with col_left:
-        if st.button("☰", key="toggle_sidebar", help="Ouvrir/Fermer la barre latérale"):
-            st.session_state.sidebar_open = not st.session_state.sidebar_open
-            # On force l'ouverture en utilisant le paramètre d'URL (fonctionne sur cloud)
-            if st.session_state.sidebar_open:
-                st.query_params["sidebar"] = "open"
-            else:
-                st.query_params.pop("sidebar", None)
-            st.rerun()
-
-# ---------------------------------------------------------------------------
 # GESTION DU MODE DARK
 # ---------------------------------------------------------------------------
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
 
-# Sidebar (si l'état est ouvert, on l'affiche)
-if st.session_state.sidebar_open:
-    with st.sidebar:
-        st.title("⚙️ Paramètres")
-        new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
-        if new_dark_mode != st.session_state.dark_mode:
-            st.session_state.dark_mode = new_dark_mode
-        st.markdown("---")
-        st.subheader("Filtres")
-else:
-    # Sidebar fermée : on ne l'affiche pas, mais on peut la rouvrir via le bouton
-    pass
+with st.sidebar:
+    st.title("⚙️ Paramètres")
+    new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
+    if new_dark_mode != st.session_state.dark_mode:
+        st.session_state.dark_mode = new_dark_mode
+    st.markdown("---")
+    st.subheader("Filtres")
 
 # Appliquer le thème CSS selon le mode
 if st.session_state.dark_mode:
@@ -88,7 +63,6 @@ if st.session_state.dark_mode:
         [data-testid="stHeader"] { background: transparent; }
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
-        header { visibility: hidden; }
         [data-testid="metric-container"] {
             background: #111827;
             border: 1px solid #1F2937;
@@ -152,7 +126,6 @@ else:
         [data-testid="stHeader"] { background: transparent; }
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
-        header { visibility: hidden; }
         [data-testid="metric-container"] {
             background: #F3F4F6;
             border: 1px solid #D1D5DB;
@@ -188,7 +161,7 @@ if not is_lead_captured():
     st.stop()
 
 # ---------------------------------------------------------------------------
-# HEADER (sans le bouton qui est déjà au-dessus)
+# HEADER
 # ---------------------------------------------------------------------------
 h_col1, h_col2, h_col3 = st.columns([3, 4, 3])
 with h_col1:
@@ -268,38 +241,30 @@ df_scored = compute_phronesis_score(df_raw)
 st.session_state.df_scored = df_scored
 
 # ---------------------------------------------------------------------------
-# FILTRES (dans la sidebar seulement si elle est ouverte)
+# FILTRES (dans la sidebar)
 # ---------------------------------------------------------------------------
-# On définit les filtres par défaut (valeurs)
-ASSET_TYPE_FILTER = {
-    "Tous": None,
-    "Actions US": "Action",
-    "ETF": ["ETF", "ETF Afrique"],
-    "Crypto": "Crypto",
-    "Forex": "Forex",
-    "Commodités": "Commodité",
-    "Afrique": "ETF Afrique",
-}
-asset_filter = "Tous"
-signal_filter = "Tous les signaux"
-risk_filter = "Tous niveaux"
-score_min = 0
+with st.sidebar:
+    ASSET_TYPE_FILTER = {
+        "Tous": None,
+        "Actions US": "Action",
+        "ETF": ["ETF", "ETF Afrique"],
+        "Crypto": "Crypto",
+        "Forex": "Forex",
+        "Commodités": "Commodité",
+        "Afrique": "ETF Afrique",
+    }
+    asset_filter = st.selectbox("Type d'actif", list(ASSET_TYPE_FILTER.keys()), index=0)
+    signal_filter = st.selectbox(
+        "Signal",
+        ["Tous les signaux", "Fortement sous-évalué", "Sous-évalué",
+         "Neutre", "Surévalué", "Fortement surévalué"],
+    )
+    risk_filter = st.selectbox(
+        "Niveau de risque",
+        ["Tous niveaux", "Faible", "Moyen", "Élevé", "Très élevé"],
+    )
+    score_min = st.slider("Score minimum", 0, 100, 0, step=5)
 
-if st.session_state.sidebar_open:
-    with st.sidebar:
-        asset_filter = st.selectbox("Type d'actif", list(ASSET_TYPE_FILTER.keys()), index=0)
-        signal_filter = st.selectbox(
-            "Signal",
-            ["Tous les signaux", "Fortement sous-évalué", "Sous-évalué",
-             "Neutre", "Surévalué", "Fortement surévalué"],
-        )
-        risk_filter = st.selectbox(
-            "Niveau de risque",
-            ["Tous niveaux", "Faible", "Moyen", "Élevé", "Très élevé"],
-        )
-        score_min = st.slider("Score minimum", 0, 100, 0, step=5)
-
-# Appliquer les filtres
 df = df_scored.copy()
 asset_val = ASSET_TYPE_FILTER.get(asset_filter)
 if asset_val:
@@ -402,7 +367,7 @@ else:
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# FICHE DÉTAIL ACTIF (indentation corrigée)
+# FICHE DÉTAIL ACTIF
 # ---------------------------------------------------------------------------
 st.subheader("Analyse détaillée d'un actif")
 ticker_detail = st.selectbox(
@@ -466,7 +431,6 @@ if ticker_detail:
         with g_col1:
             dates  = r.get("hist_dates", [])
             closes = r.get("hist_closes", [])
-            # Vérification robuste
             if (dates is not None and closes is not None and 
                 isinstance(dates, (list, tuple)) and isinstance(closes, (list, tuple)) and 
                 len(dates) > 0 and len(closes) > 0):
