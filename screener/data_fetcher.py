@@ -283,6 +283,7 @@ def get_default_tickers():
     return [
         "AAPL", "MSFT", "GOOGL", "AMZN", "META",
         "JPM", "JNJ", "V", "NVDA", "TSLA",
+        "NIO", "RKLB", "SOFI", "JOBY",
         "SPY", "QQQ", "GLD",
         "BTC-USD", "ETH-USD",
         "EURUSD=X", "GBPUSD=X",
