@@ -11,19 +11,6 @@ import requests
 import time
 import os
 
-import os
-import pandas as pd
-
-def load_precomputed_data() -> pd.DataFrame:
-    """Charge les données depuis data/latest.parquet (généré par GitHub Actions)"""
-    filepath = "data/latest.parquet"
-    if os.path.exists(filepath):
-        return pd.read_parquet(filepath)
-    else:
-        # Fallback local (si le fichier n'existe pas)
-        from .data_fetcher import fetch_batch, get_default_tickers
-        return fetch_batch(get_default_tickers())
-
 # ---------------------------------------------------------------------------
 # CONSTANTES
 # ---------------------------------------------------------------------------
@@ -68,7 +55,7 @@ ASSET_TYPES = {
     "COIN": "Action", "SQ": "Action", "PYPL": "Action", "SHOP": "Action",
     "SPOT": "Action", "ROKU": "Action", "TTD": "Action", "ZS": "Action",
     "MRNA": "Action", "BIIB": "Action", "ILMN": "Action", "WBA": "Action",
-    "NIO": "Action", "RKLB": "Action", "SOFI": "Action", "JOBY": "Action",
+    "NIO": "Action", "RIVN": "Action", "RKLB": "Action", "SOFI": "Action", "JOBY": "Action",
     # === ETF ===
     "SPY": "ETF", "QQQ": "ETF", "IVV": "ETF", "VOO": "ETF",
     "VTI": "ETF", "VT": "ETF", "BND": "ETF", "AGG": "ETF",
@@ -127,15 +114,26 @@ def load_precomputed_data() -> pd.DataFrame:
     """
     filepath = "data/latest.parquet"
     if os.path.exists(filepath):
-        df = pd.read_parquet(filepath)
-        return df
+        try:
+            df = pd.read_parquet(filepath)
+            # Vérifier que les tickers récents sont présents, sinon les ajouter
+            default_list = get_default_tickers()
+            existing = set(df["ticker"].unique())
+            missing = set(default_list) - existing
+            if missing:
+                # Ajouter les tickers manquants via fetch_batch (seulement ceux manquants)
+                extra_rows = fetch_batch(list(missing), delay=0.5)
+                if not extra_rows.empty:
+                    df = pd.concat([df, extra_rows], ignore_index=True)
+            return df
+        except Exception as e:
+            print(f"Erreur lecture parquet : {e}")
+            return fetch_batch(get_default_tickers())
     else:
-        # Fallback pour le développement local
-        from .data_fetcher import fetch_batch, get_default_tickers
         return fetch_batch(get_default_tickers())
 
 # ---------------------------------------------------------------------------
-# FETCH SINGLE TICKER (yfinance) - conservé pour usage éventuel
+# FETCH SINGLE TICKER (yfinance)
 # ---------------------------------------------------------------------------
 def fetch_ticker(ticker: str) -> dict | None:
     """
@@ -146,7 +144,6 @@ def fetch_ticker(ticker: str) -> dict | None:
         t = yf.Ticker(ticker)
         info = t.info
 
-        # Prix courant (plusieurs fallbacks)
         price = (
             info.get("currentPrice")
             or info.get("regularMarketPrice")
@@ -157,12 +154,10 @@ def fetch_ticker(ticker: str) -> dict | None:
         if not price or price == 0:
             return None
 
-        # Historique 3 mois pour calculs techniques
         hist = t.history(period="3mo", interval="1d")
         if hist.empty or len(hist) < 5:
             return None
 
-        # --- Fondamentaux ---
         pe         = info.get("trailingPE")
         pb         = info.get("priceToBook")
         roe        = info.get("returnOnEquity")
@@ -177,25 +172,15 @@ def fetch_ticker(ticker: str) -> dict | None:
         short_name = info.get("shortName", ticker)
         currency   = info.get("currency", "USD")
 
-        # --- Indicateurs techniques ---
         closes = hist["Close"]
         volumes = hist["Volume"] if "Volume" in hist.columns else pd.Series([0])
 
-        # RSI 14 jours
         rsi = _calc_rsi(closes, 14)
-
-        # Momentum
         mom_1m = _calc_momentum(closes, 22)
         mom_3m = _calc_momentum(closes, len(closes) - 1)
-
-        # Volatilité annualisée
         volatility = float(closes.pct_change().dropna().std() * (252 ** 0.5) * 100)
-
-        # Drawdown max 3 mois
         rolling_max = closes.cummax()
         drawdown = float(((closes - rolling_max) / rolling_max).min() * 100)
-
-        # Volume moyen 20j
         vol_avg_20 = float(volumes.tail(20).mean()) if len(volumes) >= 20 else 0
 
         return {
@@ -206,7 +191,6 @@ def fetch_ticker(ticker: str) -> dict | None:
             "currency":    currency,
             "price":       round(float(price), 4),
             "market_cap":  market_cap,
-            # Fondamentaux
             "pe":          _safe(pe),
             "pb":          _safe(pb),
             "roe":         _safe(roe),
@@ -216,27 +200,19 @@ def fetch_ticker(ticker: str) -> dict | None:
             "bvps":        _safe(bvps),
             "ev_ebitda":   _safe(ev_ebitda),
             "revenue":     revenue,
-            # Techniques
             "rsi":         round(rsi, 1),
             "momentum_1m": round(mom_1m, 2),
             "momentum_3m": round(mom_3m, 2),
             "volatility":  round(volatility, 1),
             "drawdown":    round(drawdown, 1),
             "vol_avg_20":  round(vol_avg_20, 0),
-            # Historique pour graphiques
             "hist_closes": closes.tail(60).tolist(),
             "hist_dates":  [str(d.date()) for d in closes.tail(60).index],
         }
     except Exception:
         return None
 
-# ---------------------------------------------------------------------------
-# FETCH BATCH (avec délai) - conservé pour fallback local
-# ---------------------------------------------------------------------------
 def fetch_batch(tickers: list, delay: float = 0.5) -> pd.DataFrame:
-    """
-    Fetche une liste de tickers avec délai pour éviter le rate-limit yfinance.
-    """
     rows = []
     for tk in tickers:
         data = fetch_ticker(tk)
@@ -245,14 +221,7 @@ def fetch_batch(tickers: list, delay: float = 0.5) -> pd.DataFrame:
         time.sleep(delay)
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
-# ---------------------------------------------------------------------------
-# CRYPTO via CoinGecko (données supplémentaires NVT proxy)
-# ---------------------------------------------------------------------------
 def fetch_crypto_metrics(ticker: str) -> dict:
-    """
-    Récupère market_cap, volume 24h via CoinGecko pour proxy NVT.
-    NVT = Market Cap / Volume 24h (simplifié)
-    """
     cg_id = COINGECKO_IDS.get(ticker)
     if not cg_id:
         return {}
@@ -275,15 +244,11 @@ def fetch_crypto_metrics(ticker: str) -> dict:
     except Exception:
         return {}
 
-# ---------------------------------------------------------------------------
-# HELPERS
-# ---------------------------------------------------------------------------
 def get_default_tickers():
-    """Liste de tickers par défaut (utilisée en fallback)."""
     return [
         "AAPL", "MSFT", "GOOGL", "AMZN", "META",
         "JPM", "JNJ", "V", "NVDA", "TSLA",
-        "NIO", "RKLB", "SOFI", "JOBY",
+        "NIO", "RIVN", "RKLB", "SOFI", "JOBY",
         "SPY", "QQQ", "GLD",
         "BTC-USD", "ETH-USD",
         "EURUSD=X", "GBPUSD=X",
@@ -309,15 +274,12 @@ def _calc_momentum(closes: pd.Series, periods: int) -> float:
         return 0.0
 
 def _safe(val) -> float | None:
-    """Retourne None si la valeur est invalide (inf, nan, None)."""
     if val is None:
         return None
     try:
         f = float(val)
-        if f != f or abs(f) > 1e15:  # NaN ou inf
+        if f != f or abs(f) > 1e15:
             return None
         return round(f, 4)
     except Exception:
         return None
-    
-    

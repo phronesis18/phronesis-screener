@@ -2,7 +2,7 @@
 app.py
 Phronesis Screener — Application principale Streamlit
 Avec mode dark (toggle sidebar) + assistant IA contextuel + recherche dynamique.
-Chargement des données depuis fichier pré-calculé (GitHub Actions) pour éviter rate-limit.
+Chargement des données depuis fichier pré-calculé + persistance des tickers ajoutés.
 """
 
 import streamlit as st
@@ -27,7 +27,7 @@ st.set_page_config(
     page_title="Phronesis Screener — Actifs Sous-évalués",
     page_icon="🏛",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
     menu_items={
         "Get Help": None,
         "Report a bug": None,
@@ -46,7 +46,6 @@ with st.sidebar:
     new_dark_mode = st.toggle("🌙 Mode sombre", value=st.session_state.dark_mode)
     if new_dark_mode != st.session_state.dark_mode:
         st.session_state.dark_mode = new_dark_mode
-        st.rerun()  # Force le rechargement du CSS
     st.markdown("---")
     st.subheader("Filtres")
 
@@ -190,20 +189,36 @@ with h_col3:
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# CHARGEMENT DES DONNÉES PRÉ-CALCULÉES (depuis data/latest.parquet)
+# INITIALISATION DE LA SESSION POUR LES TICKERS PERSONNALISÉS
 # ---------------------------------------------------------------------------
-@st.cache_data(ttl=3600, show_spinner=False)   # cache 1 heure
+if "custom_tickers" not in st.session_state:
+    st.session_state.custom_tickers = []
+
+# ---------------------------------------------------------------------------
+# CHARGEMENT DES DONNÉES PRÉ-CALCULÉES
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_screener_data():
     return load_precomputed_data()
 
 df_raw = load_screener_data()
 
-if df_raw.empty:
-    st.error("⚠️ Impossible de charger les données. Vérifiez que le fichier data/latest.parquet existe ou que le fallback fonctionne.")
-    st.stop()
+# Ajouter les tickers personnalisés (conservés d'une session à l'autre)
+if st.session_state.custom_tickers:
+    new_rows = []
+    for ticker in st.session_state.custom_tickers:
+        if ticker not in df_raw["ticker"].values:
+            extra_data = fetch_ticker(ticker)
+            if extra_data:
+                if "asset_type" not in extra_data:
+                    extra_data["asset_type"] = ASSET_TYPES.get(ticker, "Action")
+                new_rows.append(extra_data)
+    if new_rows:
+        extra_df = pd.DataFrame(new_rows)
+        df_raw = pd.concat([df_raw, extra_df], ignore_index=True)
 
 # ---------------------------------------------------------------------------
-# AJOUT D'UN TICKER SUPPLÉMENTAIRE (recherche manuelle)
+# AJOUT D'UN NOUVEAU TICKER DEPUIS LA RECHERCHE
 # ---------------------------------------------------------------------------
 if ticker_search and ticker_search.strip():
     extra_ticker = ticker_search.strip().upper()
@@ -213,9 +228,10 @@ if ticker_search and ticker_search.strip():
             if extra_data:
                 if "asset_type" not in extra_data:
                     extra_data["asset_type"] = ASSET_TYPES.get(extra_ticker, "Action")
-                extra_df = pd.DataFrame([extra_data])
-                df_raw = pd.concat([df_raw, extra_df], ignore_index=True)
+                if extra_ticker not in st.session_state.custom_tickers:
+                    st.session_state.custom_tickers.append(extra_ticker)
                 st.toast(f"✅ {extra_ticker} ajouté au screener", icon="🏛")
+                st.rerun()
             else:
                 st.warning(f"⚠️ Ticker {extra_ticker} non trouvé ou données indisponibles")
 
@@ -223,7 +239,6 @@ if ticker_search and ticker_search.strip():
 # SCORING
 # ---------------------------------------------------------------------------
 df_scored = compute_phronesis_score(df_raw)
-
 st.session_state.df_scored = df_scored
 
 # ---------------------------------------------------------------------------
@@ -417,7 +432,7 @@ if ticker_detail:
         with g_col1:
             dates  = r.get("hist_dates", [])
             closes = r.get("hist_closes", [])
-            if dates is not None and closes is not None and len(dates) > 0 and len(closes) > 0:
+            if dates and closes and len(dates) > 0 and len(closes) > 0:
                 fig = price_chart(dates, closes, ticker_detail, r.get("fair_value"))
                 st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
         with g_col2:
