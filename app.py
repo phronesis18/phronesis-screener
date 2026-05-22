@@ -429,12 +429,15 @@ if ticker_detail:
 
         st.write("")
         g_col1, g_col2 = st.columns([3, 2])
-        with g_col1:
-            dates  = r.get("hist_dates", [])
-            closes = r.get("hist_closes", [])
-            if dates and closes and len(dates) > 0 and len(closes) > 0:
-                fig = price_chart(dates, closes, ticker_detail, r.get("fair_value"))
-                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+with g_col1:
+    dates  = r.get("hist_dates", [])
+    closes = r.get("hist_closes", [])
+    # Vérification robuste (évite l'erreur de vérité sur les séries pandas)
+    if (dates is not None and closes is not None and 
+        isinstance(dates, (list, tuple)) and isinstance(closes, (list, tuple)) and 
+        len(dates) > 0 and len(closes) > 0):
+        fig = price_chart(dates, closes, ticker_detail, r.get("fair_value"))
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
         with g_col2:
             fig_radar = score_radar(
                 r.get("score_value", 0),
