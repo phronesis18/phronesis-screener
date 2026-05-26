@@ -517,7 +517,7 @@ with cta_col2:
             st.markdown(f"[Cliquer ici pour ouvrir WhatsApp]({WHATSAPP_URL})")
     with cta_b:
         if st.button("📅 Réserver un appel découverte", width="stretch"):
-            st.markdown("[Réserver sur cal.com/phronesis](https://cal.com)")
+            st.markdown("[Réserver sur cal.com/phronesis](https://cal.com/phronesis-wewuq5)")
     st.markdown("""
     <div style="text-align:center;font-size:12px;color:#374151;margin-top:16px">
         Club privé · Nombre de places limité · Sans engagement
