@@ -497,7 +497,7 @@ with g2_col2:
 # CTA — REJOINDRE LE CLUB
 # ---------------------------------------------------------------------------
 st.markdown('<hr class="ph-divider">', unsafe_allow_html=True)
-WHATSAPP_URL = "https://wa.me/22997000000?text=Bonjour%20Phronesis%2C%20je%20veux%20d%C3%A9couvrir%20le%20Club%20Priv%C3%A9"
+WHATSAPP_URL = "https://wa.me/message/AYW2Z2ZQSKQ7E1"
 cta_col1, cta_col2, cta_col3 = st.columns([1, 3, 1])
 with cta_col2:
     st.markdown("""
