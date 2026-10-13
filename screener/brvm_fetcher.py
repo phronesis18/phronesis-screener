@@ -13,6 +13,7 @@ Fonctionnalités :
 - Recherche en cascade (J-1, J-2, ... J-5) du dernier BOC disponible
 - Saut automatique des week-ends
 - Parsing multi-format des tableaux (3 layouts différents dans le BOC)
+- Filtre sanity anti-outliers (prix > 5× médiane = rejeté)
 - Historique local persisté dans data/brvm_history.parquet
 - Calcul des indicateurs techniques (RSI, momentum, volatilité, drawdown)
 - Amorçage rétroactif de l'historique (bootstrap)
@@ -206,6 +207,37 @@ def _parse_boc_row(values: list) -> dict | None:
     return None
 
 
+def _sanity_filter_prices(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Filtre les prix aberrants en utilisant la médiane de l'historique récent
+    comme référence. Une valeur > 5× la médiane est rejetée.
+    """
+    if df.empty:
+        return df
+
+    df_hist = load_history()
+    if df_hist.empty:
+        return df  # pas de référence, on garde tout
+
+    recent = df_hist.sort_values("date").groupby("ticker").tail(10)
+    medians = recent.groupby("ticker")["close"].median().to_dict()
+
+    def is_valid(row):
+        ref = medians.get(row["ticker"])
+        if ref is None or ref <= 0:
+            return True
+        return (row["close"] <= ref * 5) and (row["close"] >= ref / 5)
+
+    n_before = len(df)
+    df = df[df.apply(is_valid, axis=1)].reset_index(drop=True)
+    n_removed = n_before - len(df)
+
+    if n_removed > 0:
+        logging.warning(f"🧹 {n_removed} prix aberrants rejetés (sanity check)")
+
+    return df
+
+
 def parse_boc_pdf(pdf_content: bytes) -> pd.DataFrame:
     """Extrait les cours du PDF. Retourne : ticker, name, close, volume."""
     try:
@@ -237,8 +269,12 @@ def parse_boc_pdf(pdf_content: bytes) -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.DataFrame(all_rows)
-    # Déduplication : garder la ligne avec le volume le plus élevé (Format B > A/C)
+    # Déduplication : garder la ligne avec le volume le plus élevé
     df = df.sort_values("volume", ascending=False).drop_duplicates(subset="ticker").reset_index(drop=True)
+
+    # --- Filtre sanity anti-outliers ---
+    df = _sanity_filter_prices(df)
+
     logging.info(f"✅ {len(df)} tickers BRVM parsés")
     return df
 

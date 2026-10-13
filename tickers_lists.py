@@ -9,10 +9,32 @@ Structure :
 Objectif : ~1800 tickers toutes classes d'actifs et places boursières confondues.
 """
 
+import io
 import logging
+import requests
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+# ============================================================================
+# HEADERS WIKIPEDIA (contourne le blocage HTTP 403)
+# ============================================================================
+
+WIKI_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def _read_html_with_headers(url: str) -> list:
+    """Récupère les tableaux d'une page Wikipedia en contournant le blocage 403."""
+    resp = requests.get(url, headers=WIKI_HEADERS, timeout=30)
+    resp.raise_for_status()
+    return pd.read_html(io.StringIO(resp.text))
 
 
 # ============================================================================
@@ -22,10 +44,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def fetch_sp500() -> list[str]:
     """Récupère les 500 composants du S&P 500 depuis Wikipedia."""
     try:
-        df = pd.read_html("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies")[0]
+        tables = _read_html_with_headers("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies")
+        df = tables[0]
         tickers = df['Symbol'].tolist()
-        # Yahoo Finance utilise '-' au lieu de '.' pour les classes d'actions (ex: BRK.B → BRK-B)
-        tickers = [t.replace('.', '-') for t in tickers]
+        # Yahoo Finance utilise '-' au lieu de '.' pour les classes d'actions (BRK.B → BRK-B)
+        tickers = [str(t).replace('.', '-') for t in tickers]
         logging.info(f"✅ S&P 500 : {len(tickers)} tickers")
         return tickers
     except Exception as e:
@@ -36,12 +59,11 @@ def fetch_sp500() -> list[str]:
 def fetch_nasdaq100() -> list[str]:
     """Récupère les 100 composants du Nasdaq 100 depuis Wikipedia."""
     try:
-        tables = pd.read_html("https://en.wikipedia.org/wiki/Nasdaq-100")
-        # Le tableau des composants est généralement le 4ème ou 5ème
+        tables = _read_html_with_headers("https://en.wikipedia.org/wiki/Nasdaq-100")
         for table in tables:
             if 'Ticker' in table.columns:
                 tickers = table['Ticker'].tolist()
-                tickers = [t.replace('.', '-') for t in tickers]
+                tickers = [str(t).replace('.', '-') for t in tickers]
                 logging.info(f"✅ Nasdaq 100 : {len(tickers)} tickers")
                 return tickers
         return []
@@ -52,11 +74,11 @@ def fetch_nasdaq100() -> list[str]:
 
 def fetch_russell2000_sample() -> list[str]:
     """
-    Récupère un échantillon de ~300 mid-caps US (non exhaustif du Russell 2000,
-    mais suffisant pour enrichir la couverture). Source : Wikipedia iShares IWM holdings.
+    Récupère un échantillon de mid-caps US (non exhaustif du Russell 2000,
+    mais suffisant pour enrichir la couverture).
     """
     try:
-        tables = pd.read_html("https://en.wikipedia.org/wiki/Russell_2000_Index")
+        tables = _read_html_with_headers("https://en.wikipedia.org/wiki/Russell_2000_Index")
         for table in tables:
             if 'Symbol' in table.columns or 'Ticker' in table.columns:
                 col = 'Symbol' if 'Symbol' in table.columns else 'Ticker'
@@ -77,7 +99,7 @@ US_EXTRAS = [
     "VEEV", "WDAY", "NOW", "INTU", "ADSK", "ANSS", "CDNS", "SNPS", "KLAC", "LRCX",
     "AMAT", "MRVL", "ON", "NXPI", "QRVO", "SWKS", "MPWR", "TER", "ENTG", "AZTA",
     # Fintech / néo-banques
-    "SOFI", "HOOD", "AFRM", "UPST", "LC", "MQ", "NU", "STNE", "PAGS", "STNE",
+    "SOFI", "HOOD", "AFRM", "UPST", "LC", "MQ", "NU", "STNE", "PAGS",
     "COIN", "MARA", "RIOT", "CLSK", "HUT", "BITF", "CIFR",
     # EV / Mobility / Space
     "RIVN", "LCID", "NIO", "XPEV", "LI", "FSR", "GOEV", "RIDE", "MULN",
@@ -107,7 +129,7 @@ EUROPE_TICKERS = [
     "BNP.PA", "ACA.PA", "CA.PA", "GLE.PA", "KER.PA", "PRTP.PA", "LR.PA",
     "VIE.PA", "PUB.PA", "BVI.PA", "EN.PA", "ENGI.PA", "RNO.PA",
     "ML.PA", "STM.PA", "DSY.PA", "STLAP.PA", "SAF.PA", "TRI.PA", "EL.PA",
-    "MC.PA", "RMS.PA", "CDI.PA", "KER.PA", "BB.PA", "ALO.PA", "UG.PA",
+    "MC.PA", "RMS.PA", "CDI.PA", "BB.PA", "ALO.PA", "UG.PA",
     "HO.PA", "AI.PA", "BN.PA", "DG.PA", "ERF.PA", "FR.PA", "GTT.PA",
     "IPH.PA", "LEG.PA", "MERY.PA", "NEX.PA", "ORA.PA", "RI.PA", "SOP.PA",
     "SW.PA", "TEP.PA", "URW.PA", "VIV.PA", "WAVE.PA", "AKE.PA", "ELIS.PA",
@@ -118,7 +140,7 @@ EUROPE_TICKERS = [
     "MBG.DE", "VOW3.DE", "ADS.DE", "MUV2.DE", "FRE.DE", "HEI.DE", "HEN3.DE",
     "IFX.DE", "LIN.DE", "P911.DE", "QIA.DE", "RWE.DE", "SIE.DE",
     "AIR.DE", "BEI.DE", "BNR.DE", "CBK.DE", "CON.DE", "DB1.DE", "DBK.DE",
-    "DPW.DE", "EOAN.DE", "FME.DE", "FRE.DE", "G24.DE", "HNR1.DE", "HRX.DE",
+    "DPW.DE", "EOAN.DE", "FME.DE", "G24.DE", "HNR1.DE", "HRX.DE",
     "MTX.DE", "PAH3.DE", "PUM.DE", "RHM.DE", "SHL.DE", "SY1.DE", "VNA.DE",
     "ZAL.DE", "1COV.DE", "AFX.DE", "BOSS.DE", "ENR.DE", "KGX.DE", "LXS.DE",
     "NDX1.DE", "SZG.DE", "TKA.DE", "WCH.DE", "WDI.DE", "ZOE.DE",
@@ -147,7 +169,7 @@ EUROPE_TICKERS = [
 
     # --- Espagne (Bolsa de Madrid) .MC ---
     "SAN.MC", "BBVA.MC", "TEF.MC", "IBE.MC", "REP.MC", "AENA.MC",
-    "FER.MC", "ACS.MC", "ELE.MC", "CABK.MC", "ACX.MC", "AENA.MC",
+    "FER.MC", "ACS.MC", "ELE.MC", "CABK.MC", "ACX.MC",
     "AMS.MC", "ANA.MC", "BKT.MC", "CAF.MC", "CIE.MC", "COL.MC",
     "ENG.MC", "FDR.MC", "GRF.MC", "IAG.MC", "IDR.MC", "ITX.MC",
     "LOG.MC", "MAP.MC", "MEL.MC", "MRL.MC", "MTS.MC", "NTGY.MC",
@@ -222,14 +244,14 @@ ASIA_TICKERS = [
     "002304.SZ", "002714.SZ", "300059.SZ", "300015.SZ", "300124.SZ",
     "002460.SZ", "002466.SZ", "002049.SZ", "000568.SZ", "000538.SZ",
 
-    # --- Hong Kong (HKEX) .HK ---
-    "0700.HK", "9988.HK", "9999.HK", "1810.HK", "00388.HK", "00005.HK",
-    "00011.HK", "00016.HK", "00027.HK", "00175.HK", "03690.HK",
-    "00939.HK", "01398.HK", "03988.HK", "00883.HK", "00857.HK",
-    "02318.HK", "02628.HK", "01299.HK", "00003.HK", "00006.HK",
-    "00012.HK", "00066.HK", "00291.HK", "00700.HK", "01044.HK",
-    "01109.HK", "01113.HK", "01211.HK", "02020.HK", "02331.HK",
-    "02382.HK", "09618.HK", "09888.HK", "09961.HK", "09999.HK",
+    # --- Hong Kong (HKEX) .HK — 4 chiffres, sans zéro en tête ---
+    "0700.HK", "9988.HK", "9999.HK", "1810.HK", "0388.HK", "0005.HK",
+    "0011.HK", "0016.HK", "0027.HK", "0175.HK", "3690.HK",
+    "0939.HK", "1398.HK", "3988.HK", "0883.HK", "0857.HK",
+    "2318.HK", "2628.HK", "1299.HK", "0003.HK", "0006.HK",
+    "0012.HK", "0066.HK", "0291.HK", "1044.HK",
+    "1109.HK", "1113.HK", "1211.HK", "2020.HK", "2331.HK",
+    "2382.HK", "9618.HK", "9888.HK", "9961.HK",
 
     # --- Inde (National Stock Exchange) .NS ---
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
@@ -365,7 +387,7 @@ ETF_TICKERS = [
     # --- Biotech & Santé ---
     "IBB", "XBI", "LABU", "LABD", "IHI", "XHE", "PPH", "FBT",
     # --- Tech & Semi ---
-    "SMH", "SOXX", "IGV", "VGT", "FTEC", "CIBR", "HACK", "BOTZ", "ROBO",
+    "SMH", "SOXX", "IGV", "FTEC", "CIBR", "HACK", "BOTZ", "ROBO",
     "ARKK", "ARKW", "ARKG", "ARKF", "ARKQ", "ARKX",
     # --- Small/Mid Caps ---
     "VTWO", "IWM", "IJH", "IJR", "VB", "VO", "VBR", "VBK", "IWO", "IWN",
@@ -390,7 +412,7 @@ CRYPTO_TICKERS = [
     # --- Large caps ---
     "LINK-USD", "LTC-USD", "BCH-USD", "UNI-USD", "ATOM-USD", "XLM-USD",
     "ALGO-USD", "VET-USD", "FIL-USD", "ICP-USD", "NEAR-USD", "APT-USD",
-    "ARB-USD", "OP-USD", "AVAX-USD", "ETC-USD", "HBAR-USD", "FTM-USD",
+    "ARB-USD", "OP-USD", "ETC-USD", "HBAR-USD", "FTM-USD",
     # --- DeFi ---
     "AAVE-USD", "MKR-USD", "COMP-USD", "CRV-USD", "SNX-USD", "SUSHI-USD",
     "YFI-USD", "1INCH-USD", "CAKE-USD", "RUNE-USD", "KAVA-USD",
@@ -473,21 +495,21 @@ COMMODITY_TICKERS = [
 def build_all_tickers(include_dynamic: bool = True) -> list[str]:
     """
     Construit la liste finale de tous les tickers, dédoublonnée et nettoyée.
-    
+
     Args:
         include_dynamic: si True, récupère S&P 500, Nasdaq 100, Russell 2000 depuis Wikipedia.
-    
+
     Returns:
         Liste de tickers unique.
     """
     all_tickers = []
-    
+
     # --- Récupération dynamique US ---
     if include_dynamic:
         all_tickers += fetch_sp500()
         all_tickers += fetch_nasdaq100()
         all_tickers += fetch_russell2000_sample()
-    
+
     # --- Listes statiques ---
     all_tickers += US_EXTRAS
     all_tickers += EUROPE_TICKERS
@@ -497,12 +519,12 @@ def build_all_tickers(include_dynamic: bool = True) -> list[str]:
     all_tickers += CRYPTO_TICKERS
     all_tickers += FOREX_TICKERS
     all_tickers += COMMODITY_TICKERS
-    
+
     # --- Nettoyage ---
     all_tickers = [str(t).strip() for t in all_tickers if t and isinstance(t, str)]
     all_tickers = list(set(all_tickers))  # Dédoublonnage
     all_tickers.sort()
-    
+
     logging.info(f"🎯 Total : {len(all_tickers)} tickers uniques")
     return all_tickers
 
@@ -510,7 +532,10 @@ def build_all_tickers(include_dynamic: bool = True) -> list[str]:
 def count_by_category() -> dict:
     """Retourne le compte de tickers par catégorie (pour audit)."""
     return {
-        "US (dynamique + extras)": len(fetch_sp500()) + len(fetch_nasdaq100()) + len(fetch_russell2000_sample()) + len(US_EXTRAS),
+        "US (dynamique + extras)": (
+            len(fetch_sp500()) + len(fetch_nasdaq100())
+            + len(fetch_russell2000_sample()) + len(US_EXTRAS)
+        ),
         "Europe": len(EUROPE_TICKERS),
         "Asie & Océanie": len(ASIA_TICKERS),
         "Afrique": len(AFRICA_TICKERS),
@@ -522,7 +547,6 @@ def count_by_category() -> dict:
 
 
 if __name__ == "__main__":
-    # Test : afficher le compte par catégorie
     counts = count_by_category()
     print("\n📊 Répartition des tickers par catégorie :")
     print("=" * 50)
@@ -532,7 +556,3 @@ if __name__ == "__main__":
         total += count
     print("=" * 50)
     print(f"  {'TOTAL':<30} : {total:>5}")
-    
-    # Test : construire la liste complète
-    tickers = build_all_tickers(include_dynamic=False)  # False pour un test rapide sans réseau
-    print(f"\n✅ Liste statique (sans dynamique) : {len(tickers)} tickers")
