@@ -110,26 +110,17 @@ DISPLAY_NAMES = {
 def load_precomputed_data() -> pd.DataFrame:
     """
     Charge les données depuis data/latest.parquet (généré par GitHub Actions).
-    Si le fichier n'existe pas (développement local), utilise fetch_batch sur une liste réduite.
     """
     filepath = "data/latest.parquet"
     if os.path.exists(filepath):
         try:
             df = pd.read_parquet(filepath)
-            # Vérifier que les tickers récents sont présents, sinon les ajouter
-            default_list = get_default_tickers()
-            existing = set(df["ticker"].unique())
-            missing = set(default_list) - existing
-            if missing:
-                # Ajouter les tickers manquants via fetch_batch (seulement ceux manquants)
-                extra_rows = fetch_batch(list(missing), delay=0.5)
-                if not extra_rows.empty:
-                    df = pd.concat([df, extra_rows], ignore_index=True)
             return df
         except Exception as e:
             print(f"Erreur lecture parquet : {e}")
             return fetch_batch(get_default_tickers())
     else:
+        # Fallback si le fichier n'existe pas (ex: premier lancement local)
         return fetch_batch(get_default_tickers())
 
 # ---------------------------------------------------------------------------

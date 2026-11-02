@@ -2,8 +2,9 @@ name: Update Screener Data
 
 on:
   schedule:
-    - cron: '5 * * * *'
-  workflow_dispatch:
+    # Tous les jours à 2h du matin (UTC)
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Permet de le lancer manuellement
 
 jobs:
   fetch-data:
@@ -17,24 +18,27 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Set up Java (Requis pour tabula-py / BRVM)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --no-cache-dir yfinance pandas numpy requests pyarrow
+          pip install --no-cache-dir -r requirements.txt
 
-      - name: Verify pyarrow installation
-        run: |
-          python -c "import pyarrow; print('pyarrow version:', pyarrow.__version__)"
+      - name: Run data pipeline
+        run: python generate_parquet.py
 
-      - name: Run data fetcher
-        run: python scripts/fetch_all_tickers.py
-
-      - name: Commit and push data file
+      - name: Commit and push data files
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add data/latest.parquet
-          git commit -m "Auto-update screener data $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
+          git add data/latest.parquet data/brvm_history.parquet
+          git commit -m "Auto-update data $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           git push
