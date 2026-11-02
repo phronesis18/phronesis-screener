@@ -12,6 +12,14 @@ Modes :
     - python generate_parquet.py          → liste complète (~30-45 min)
 """
 
+import yfinance as yf
+import pandas as pd
+import time
+import os
+import sys
+import logging
+import random  # <--- AJOUTE CETTE LIGNE
+from datetime import datetime
 import sys
 import io
 
@@ -285,7 +293,8 @@ def fetch_batch(tickers: list, delay: float = 1.0) -> pd.DataFrame:
         if idx % 10 == 0 or idx == total:
             logging.info(f"   → Progression : {idx}/{total} ({len(rows)} OK, {errors} échecs)")
 
-        time.sleep(delay)
+        pause_aleatoire = random.uniform(2.0, 5.0)
+        time.sleep(pause_aleatoire)
 
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
